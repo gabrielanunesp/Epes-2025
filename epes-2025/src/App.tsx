@@ -17,7 +17,7 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  if (loading) return <p>Carregando...</p>;
+  if (loading) return <p style={{ textAlign: 'center', marginTop: '2rem' }}>Carregando...</p>;
 
   return (
     <Router>

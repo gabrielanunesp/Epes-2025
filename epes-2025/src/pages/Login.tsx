@@ -1,57 +1,64 @@
-// src/pages/Login.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../services/firebase";
 import Button from "../components/Button";
+import Input from "../components/Input";
+import './Login.css';
 
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [classCode, setClassCode] = useState("");
   const [error, setError] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, classCode);
       console.log("Usuário logado:", userCredential.user);
-      navigate("/dashboard"); // redireciona para Dashboard
+      navigate("/dashboard");
     } catch (err) {
       console.error("Erro ao logar:", err);
-      setError("Erro ao logar. Verifique email e senha.");
+      setError("Erro ao logar. Verifique email e código da turma.");
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-green-100">
-      <form 
-        onSubmit={handleLogin} 
-        className="bg-white p-8 rounded shadow-md w-full max-w-sm"
-      >
-        <h2 className="text-2xl font-bold mb-6 text-center text-green-800">Login</h2>
+    <div className="login-container">
+      <form onSubmit={handleLogin} className="login-form">
+        <h2 className="login-title">EPES Challenge 2025</h2>
 
-        {error && <p className="text-red-500 mb-4">{error}</p>}
+        {error && <p className="login-error">{error}</p>}
 
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
+        <Input 
+          type="email" 
+          placeholder="E-mail" 
+          value={email} 
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-2 mb-4 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
         />
 
-        <input
-          type="password"
-          placeholder="Senha"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 mb-6 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+        <Input 
+          type="text" 
+          placeholder="Código da turma" 
+          value={classCode} 
+          onChange={(e) => setClassCode(e.target.value)}
         />
 
-        <Button type="submit" className="w-full bg-green-600 hover:bg-green-700">
-          Entrar
-        </Button>
+        <div className="login-buttons">
+          <Button type="submit" className="btn-primary">
+            Entrar no jogo
+          </Button>
+          <Button type="button" className="btn-secondary">
+            Criar/Ingressar em um time
+          </Button>
+        </div>
+
+        <footer className="login-footer">
+          <a href="#">Ajuda</a>
+          <a href="#">Política</a>
+          <a href="#">Acessibilidade</a>
+        </footer>
       </form>
     </div>
   );

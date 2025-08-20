@@ -1,0 +1,39 @@
+.dashboard-container {
+  min-height: 100vh;
+  background-color: #ECFDF5;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-header {
+  background-color: #047857;
+  color: white;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn-logout {
+  background: linear-gradient(135deg, #e53e3e, #f56565);
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-logout:hover {
+  background: linear-gradient(135deg, #c53030, #e53e3e);
+  transform: translateY(-2px);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  padding: 2rem;
+}
