@@ -1,0 +1,48 @@
+.decision-card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 16px;
+  width: 100%;
+  max-width: 300px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  background-color: #fff;
+  margin: 12px;
+  transition: box-shadow 0.3s ease;
+}
+
+.decision-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.decision-card h3 {
+  margin-top: 0;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.decision-card p {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.decision-card select {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  border: 1px solid #aaa;
+}
+
+.decision-card button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.decision-card button:hover {
+  background-color: #0056b3;
+}

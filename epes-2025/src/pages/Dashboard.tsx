@@ -27,7 +27,7 @@ export default function Dashboard() {
   };
 
   const handleOpenDecisions = () => {
-    navigate(`/decisions/${currentRound}`);
+    navigate("/decisoes");
   };
 
   return (
@@ -56,3 +56,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

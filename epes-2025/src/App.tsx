@@ -1,9 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import DecisionPage from './pages/DecisionsPage'; // ✅ Corrigido: import default
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './services/firebase';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -30,7 +33,12 @@ function App() {
           path="/dashboard"
           element={user ? <Dashboard /> : <Navigate to="/" />}
         />
+        <Route
+          path="/decisoes"
+          element={user ? <DecisionPage /> : <Navigate to="/" />} // ✅ Corrigido: nome do componente
+        />
       </Routes>
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </Router>
   );
 }
