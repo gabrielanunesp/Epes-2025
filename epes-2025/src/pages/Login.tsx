@@ -9,18 +9,23 @@ import './Login.css';
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState(""); // novo campo
   const [classCode, setClassCode] = useState("");
   const [error, setError] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, classCode);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       console.log("Usuário logado:", userCredential.user);
+
+      // salva o código da turma no localStorage
+      localStorage.setItem("codigoTurma", classCode);
+
       navigate("/dashboard");
     } catch (err) {
       console.error("Erro ao logar:", err);
-      setError("Erro ao logar. Verifique email e código da turma.");
+      setError("Erro ao logar. Verifique email e senha.");
     }
   };
 
@@ -36,6 +41,13 @@ export default function Login() {
           placeholder="E-mail" 
           value={email} 
           onChange={(e) => setEmail(e.target.value)}
+        />
+
+        <Input 
+          type="password" 
+          placeholder="Senha" 
+          value={password} 
+          onChange={(e) => setPassword(e.target.value)}
         />
 
         <Input 

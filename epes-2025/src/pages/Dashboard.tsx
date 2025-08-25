@@ -2,15 +2,15 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "../services/firebase";
-import Card from './Card';
+import Card from "./Card";
 import Button from "../components/Button";
-import Home from './Home';
+import Home from "./Home";
 import RoundStatusCard from "../components/RoundStatusCard";
-import './Dashboard.css';
+import "./Dashboard.css";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState<'home' | 'main'>('home');
+  const [currentStep, setCurrentStep] = useState<"home" | "main">("home");
 
   // Dados simulados da rodada
   const currentRound = 2;
@@ -33,13 +33,15 @@ export default function Dashboard() {
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <h1>{currentStep === 'home' ? 'Alocação Inicial' : 'Dashboard'}</h1>
-        <Button className="btn-logout" onClick={handleLogout}>Sair</Button>
+        <h1>{currentStep === "home" ? "Alocação Inicial" : "Dashboard"}</h1>
+        <Button className="btn-logout" onClick={handleLogout}>
+          Sair
+        </Button>
       </header>
 
-      <main style={{ padding: '2rem' }}>
-        {currentStep === 'home' ? (
-          <Home onFinish={() => setCurrentStep('main')} />
+      <main style={{ padding: "2rem" }}>
+        {currentStep === "home" ? (
+          <Home onFinish={() => setCurrentStep("main")} />
         ) : (
           <div className="dashboard-grid">
             <RoundStatusCard
@@ -48,12 +50,27 @@ export default function Dashboard() {
               creditAvailable={creditAvailable}
               onOpenDecisions={handleOpenDecisions}
             />
-            <Card title="Card 2" description="Informações do card 2" />
-            <Card title="Card 3" description="Informações do card 3" />
+
+            <Card
+              title="🏆 Ranking"
+              description="Veja a pontuação dos grupos e jogadores."
+              onClick={() => navigate("/ranking")}
+            />
+
+            <Card
+              title="👥 Grupos"
+              description="Gerencie os grupos e participantes."
+              onClick={() => navigate("/grupos")}
+            />
+
+            <Card
+              title="📋 Missões"
+              description="Acompanhe as tarefas e desafios disponíveis."
+              onClick={() => navigate("/missoes")}
+            />
           </div>
         )}
       </main>
     </div>
   );
 }
-

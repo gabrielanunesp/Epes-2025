@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './DecisionPage.css';
+import { db, auth } from '../services/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 export default function DecisionPage() {
   const creditAvailable = 100;
@@ -27,7 +29,11 @@ export default function DecisionPage() {
     { label: 'Processo', cost: 15 },
   ];
 
-  const toggleOption = (option: string, list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>) => {
+  const toggleOption = (
+    option: string,
+    list: string[],
+    setList: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
     setList(prev =>
       prev.includes(option)
         ? prev.filter(item => item !== option)
@@ -52,8 +58,19 @@ export default function DecisionPage() {
 
   const restante = creditAvailable - totalUsed;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (restante < 0) return;
+
+    const user = auth.currentUser;
+    const codigoTurma = localStorage.getItem('codigoTurma');
+
+    console.log('🔍 Verificando usuário e turma:', user?.email, codigoTurma);
+
+    if (!user || !codigoTurma) {
+      alert('Usuário não autenticado ou código da turma ausente.');
+      return;
+    }
+
     const decision = {
       investimento,
       marketing,
@@ -61,15 +78,25 @@ export default function DecisionPage() {
       pd,
       totalUsed,
       creditAvailable,
+      email: user.email,
+      uid: user.uid, // útil para regras futuras
+      codigoTurma,
+      timestamp: new Date(),
     };
-    console.log('Decisão salva:', decision);
+
+    try {
+      await addDoc(collection(db, 'decisoes'), decision);
+      alert('Decisão salva com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar decisão:', error);
+      alert('Ocorreu um erro ao salvar. Tente novamente.');
+    }
   };
 
   return (
     <div className="container">
       <h1>📊 Decisões da Rodada</h1>
 
-      {/* Créditos */}
       <div className="credit-box">
         <div className="credit-info">
           <span>Disponível: <strong>{creditAvailable}</strong></span>
@@ -87,9 +114,7 @@ export default function DecisionPage() {
         {restante < 0 && <p className="alert-text">⚠️ Crédito excedido! Ajuste suas escolhas.</p>}
       </div>
 
-      {/* Cards */}
       <div className="cards">
-        {/* Investimentos */}
         <div className="card">
           <h2>💼 Investimentos</h2>
           {investimentoOptions.map(opt => (
@@ -104,7 +129,6 @@ export default function DecisionPage() {
           ))}
         </div>
 
-        {/* Marketing */}
         <div className="card">
           <h2>📢 Marketing</h2>
           {marketingOptions.map(opt => (
@@ -119,7 +143,6 @@ export default function DecisionPage() {
           ))}
         </div>
 
-        {/* Produção */}
         <div className="card">
           <h2>🏭 Produção</h2>
           <input
@@ -132,7 +155,6 @@ export default function DecisionPage() {
           <p>{producao}%</p>
         </div>
 
-        {/* P&D */}
         <div className="card">
           <h2>🔬 P&D</h2>
           {pdOptions.map(opt => (
@@ -148,7 +170,6 @@ export default function DecisionPage() {
         </div>
       </div>
 
-      {/* Resumo final */}
       <div className="summary">
         <h3>📋 Resumo da Decisão</h3>
         <p>Produção: {producao}%</p>
@@ -161,7 +182,6 @@ export default function DecisionPage() {
         </p>
       </div>
 
-      {/* Botão de salvar */}
       <div className="save-button">
         <button onClick={handleSave} disabled={restante < 0}>
           💾 Salvar Decisões
