@@ -9,7 +9,7 @@ import './Login.css';
 export default function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState(""); // novo campo
+  const [password, setPassword] = useState("");
   const [classCode, setClassCode] = useState("");
   const [error, setError] = useState("");
 
@@ -19,14 +19,16 @@ export default function Login() {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       console.log("Usuário logado:", userCredential.user);
 
-      // salva o código da turma no localStorage
       localStorage.setItem("codigoTurma", classCode);
-
       navigate("/dashboard");
     } catch (err) {
       console.error("Erro ao logar:", err);
       setError("Erro ao logar. Verifique email e senha.");
     }
+  };
+
+  const handleEscolherTime = () => {
+    navigate("/escolher-time");
   };
 
   return (
@@ -61,7 +63,7 @@ export default function Login() {
           <Button type="submit" className="btn-primary">
             Entrar no jogo
           </Button>
-          <Button type="button" className="btn-secondary">
+          <Button type="button" className="btn-secondary" onClick={handleEscolherTime}>
             Criar/Ingressar em um time
           </Button>
         </div>

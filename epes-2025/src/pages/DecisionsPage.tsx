@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './DecisionPage.css';
 import { db, auth } from '../services/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, setDoc, doc } from 'firebase/firestore';
 
 export default function DecisionPage() {
   const creditAvailable = 100;
@@ -79,14 +79,37 @@ export default function DecisionPage() {
       totalUsed,
       creditAvailable,
       email: user.email,
-      uid: user.uid, // útil para regras futuras
+      uid: user.uid,
       codigoTurma,
       timestamp: new Date(),
     };
 
     try {
+      // Salva decisão
       await addDoc(collection(db, 'decisoes'), decision);
-      alert('Decisão salva com sucesso!');
+
+      // Salva jogador no ranking
+      await setDoc(doc(db, 'jogadores', user.uid), {
+        nome: user.displayName || user.email || 'Jogador',
+        pontuacao: totalUsed,
+      });
+
+      // Salva time no ranking
+      await setDoc(doc(db, 'times', codigoTurma), {
+        id: codigoTurma,
+        nome: `Time ${codigoTurma}`,
+        pontuacao: totalUsed,
+      });
+
+      // Salva rodada com validações
+      await addDoc(collection(db, 'rodadas'), {
+        pontuacaoRodada: typeof totalUsed === 'number' ? totalUsed : 0,
+        timeId: codigoTurma || 'turma-desconhecida',
+        vitoria: totalUsed >= 80,
+        timestamp: new Date(),
+      });
+
+      alert('Decisão, ranking e rodada salvos com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar decisão:', error);
       alert('Ocorreu um erro ao salvar. Tente novamente.');

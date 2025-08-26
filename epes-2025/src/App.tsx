@@ -9,7 +9,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DecisionPage from './pages/DecisionsPage';
-import RankingPage from './pages/RankingPage'; // ✅ nova importação
+import RankingPage from './pages/RankingPage';
+import EscolherTime from './pages/EscolherTime'; // ✅ nova importação
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -30,23 +31,30 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* ✅ Rota de login agora está explícita */}
+        <Route path="/login" element={<Login />} />
+
+        {/* ✅ Redireciona para login se não estiver logado */}
         <Route
           path="/"
-          element={!user ? <Login /> : <Navigate to="/dashboard" />}
+          element={!user ? <Navigate to="/login" /> : <Navigate to="/dashboard" />}
         />
         <Route
           path="/dashboard"
-          element={user ? <Dashboard /> : <Navigate to="/" />}
+          element={user ? <Dashboard /> : <Navigate to="/login" />}
         />
         <Route
           path="/decisoes"
-          element={user ? <DecisionPage /> : <Navigate to="/" />}
+          element={user ? <DecisionPage /> : <Navigate to="/login" />}
         />
         <Route
           path="/ranking"
-          element={user ? <RankingPage /> : <Navigate to="/" />}
+          element={user ? <RankingPage /> : <Navigate to="/login" />}
         />
+        {/* ✅ Rota liberada para qualquer usuário */}
+        <Route path="/escolher-time" element={<EscolherTime />} />
       </Routes>
+
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
     </Router>
   );

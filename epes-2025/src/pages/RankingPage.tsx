@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "../services/firebase"; // ajuste o caminho se necessário
+import { db } from "../services/firebase";
 import "./RankingPage.css";
 
 interface Item {
@@ -8,25 +8,60 @@ interface Item {
   pontuacao: number;
 }
 
+interface ResultadoRodada {
+  turmaId: string;
+  pontuacao: number;
+}
+
 const RankingPage: React.FC = () => {
   const [jogadores, setJogadores] = useState<Item[]>([]);
   const [times, setTimes] = useState<Item[]>([]);
+  const [resultadosRodada, setResultadosRodada] = useState<ResultadoRodada[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
         const jogadoresSnapshot = await getDocs(collection(db, "jogadores"));
         const timesSnapshot = await getDocs(collection(db, "times"));
+        const decisoesSnapshot = await getDocs(collection(db, "decisoes"));
 
         const jogadoresData = jogadoresSnapshot.docs.map((doc) => doc.data() as Item);
         const timesData = timesSnapshot.docs.map((doc) => doc.data() as Item);
 
-        // Ordenar por pontuação decrescente
         setJogadores(jogadoresData.sort((a, b) => b.pontuacao - a.pontuacao));
         setTimes(timesData.sort((a, b) => b.pontuacao - a.pontuacao));
+
+        // Agrupar pontuação por turma com validação
+        const pontuacaoPorTurma: Record<string, number> = {};
+
+        decisoesSnapshot.docs.forEach((doc) => {
+          const data = doc.data();
+
+          const turmaId = typeof data.codigoturma === "string" ? data.codigoturma.trim() : null;
+          const pontos = typeof data.creditAvailable === "number" ? data.creditAvailable : 0;
+
+          if (turmaId && turmaId !== "") {
+            pontuacaoPorTurma[turmaId] = (pontuacaoPorTurma[turmaId] || 0) + pontos;
+          } else {
+            // Ignora documentos inválidos silenciosamente
+            console.warn("Documento ignorado por falta de codigoturma:", data);
+          }
+        });
+
+        const resultados: ResultadoRodada[] = Object.entries(pontuacaoPorTurma).map(
+          ([turmaId, pontuacao]) => ({
+            turmaId,
+            pontuacao,
+          })
+        );
+
+        setResultadosRodada(resultados);
       } catch (error) {
-        console.error("Erro ao buscar dados do ranking:", error);
+        console.error("Erro ao buscar dados:", error);
       }
+      setLoading(false);
     };
 
     fetchData();
@@ -34,33 +69,40 @@ const RankingPage: React.FC = () => {
 
   return (
     <div className="ranking-container">
-      <h2 className="ranking-title">🏆 Ranking Geral</h2>
+      <h1>🏆 Ranking Geral</h1>
 
-      <section className="ranking-section">
-        <h3 className="ranking-subtitle">👤 Jogadores</h3>
-        <ul className="ranking-list">
-          {jogadores.map((jogador, index) => (
-            <li key={index} className="ranking-item">
-              <span className="ranking-position">{index + 1}º</span>
-              <span className="ranking-name">{jogador.nome}</span>
-              <span className="ranking-score">{jogador.pontuacao} pts</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {loading ? (
+        <p>Carregando dados...</p>
+      ) : (
+        <>
+          <h2>👥 Jogadores</h2>
+          <ul>
+            {jogadores.map((jogador, index) => (
+              <li key={index}>
+                {jogador.nome} — {jogador.pontuacao} pontos
+              </li>
+            ))}
+          </ul>
 
-      <section className="ranking-section">
-        <h3 className="ranking-subtitle">👥 Times</h3>
-        <ul className="ranking-list team-list">
-          {times.map((time, index) => (
-            <li key={index} className="ranking-item team-item">
-              <span className="ranking-position">{index + 1}º</span>
-              <span className="ranking-name">{time.nome}</span>
-              <span className="ranking-score">{time.pontuacao} pts</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+          <h2>🏟️ Times</h2>
+          <ul>
+            {times.map((time, index) => (
+              <li key={index}>
+                {time.nome} — {time.pontuacao} pontos
+              </li>
+            ))}
+          </ul>
+
+          <h2>📊 Rodada Atual (baseada em decisões)</h2>
+          <ul>
+            {resultadosRodada.map((resultado, index) => (
+              <li key={index}>
+                Turma {resultado.turmaId} — {resultado.pontuacao} pontos
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 };
