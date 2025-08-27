@@ -10,7 +10,10 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import DecisionPage from './pages/DecisionsPage';
 import RankingPage from './pages/RankingPage';
-import EscolherTime from './pages/EscolherTime'; // ✅ nova importação
+import Relatorio from './pages/Relatorio';
+import Informacoes from './pages/Informacoes';
+import EscolherTime from './pages/EscolherTime';
+import PainelResponsavel from './pages/PainelResponsavel'; // ✅ Nova importação
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -31,10 +34,8 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* ✅ Rota de login agora está explícita */}
         <Route path="/login" element={<Login />} />
 
-        {/* ✅ Redireciona para login se não estiver logado */}
         <Route
           path="/"
           element={!user ? <Navigate to="/login" /> : <Navigate to="/dashboard" />}
@@ -51,8 +52,21 @@ function App() {
           path="/ranking"
           element={user ? <RankingPage /> : <Navigate to="/login" />}
         />
-        {/* ✅ Rota liberada para qualquer usuário */}
+        <Route
+          path="/relatorio"
+          element={user ? <Relatorio /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/informacoes"
+          element={user ? <Informacoes /> : <Navigate to="/login" />}
+        />
         <Route path="/escolher-time" element={<EscolherTime />} />
+
+        {/* ✅ Nova rota protegida para o painel do responsável */}
+        <Route
+          path="/painel-responsavel"
+          element={user ? <PainelResponsavel /> : <Navigate to="/login" />}
+        />
       </Routes>
 
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar />

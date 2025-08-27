@@ -1,12 +1,20 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../services/firebase";
-import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
+import {
+  doc,
+  getDoc,
+  setDoc,
+} from "firebase/firestore";
 import "./EscolherTime.css";
 
 export default function EscolherTime() {
-  const [modo, setModo] = useState<"criar" | "ingressar">("ingressar");
+  const [modo, setModo] = useState<"criar" | "ingressar" | "responsavel">("ingressar");
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -25,6 +33,12 @@ export default function EscolherTime() {
         nome: nomeTime,
         criadoPor: uid,
         membros: [{ uid, nome, email, status: "aprovado" }],
+      });
+
+      await setDoc(doc(db, "users", uid), {
+        nome,
+        email,
+        papel: "membro",
       });
 
       navigate("/dashboard");
@@ -68,9 +82,34 @@ export default function EscolherTime() {
         }],
       });
 
+      await setDoc(doc(db, "users", user.uid), {
+        nome,
+        email,
+        papel: "membro",
+      }, { merge: true });
+
       setMensagem("✅ Solicitação enviada! Aguarde aprovação.");
     } catch (err) {
       setMensagem("❌ Erro ao ingressar no time.");
+    }
+  };
+
+  const handleCadastrarResponsavel = async () => {
+    try {
+      const userCred = await signInWithEmailAndPassword(auth, email, senha);
+      const uid = userCred.user.uid;
+
+      const userRef = doc(db, "users", uid);
+      const snapshot = await getDoc(userRef);
+      const dados = snapshot.data();
+
+      if (dados?.papel === "responsavel") {
+        navigate("/painel-responsavel");
+      } else {
+        setMensagem("❌ Você não tem permissão para acessar o painel.");
+      }
+    } catch (err) {
+      setMensagem("❌ Erro ao fazer login como responsável.");
     }
   };
 
@@ -86,6 +125,7 @@ export default function EscolherTime() {
       <div className="tabs">
         <button className={modo === "ingressar" ? "active" : ""} onClick={() => setModo("ingressar")}>🚪 Ingressar</button>
         <button className={modo === "criar" ? "active" : ""} onClick={() => setModo("criar")}>✨ Criar</button>
+        <button className={modo === "responsavel" ? "active" : ""} onClick={() => setModo("responsavel")}>🛡️ Responsável</button>
       </div>
 
       <input type="text" placeholder="👤 Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
@@ -104,6 +144,13 @@ export default function EscolherTime() {
         <>
           <input type="text" placeholder="🔑 Código do time" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
           <button onClick={handleIngressar}>📥 Solicitar Ingresso</button>
+        </>
+      )}
+
+      {modo === "responsavel" && (
+        <>
+          <input type="password" placeholder="🔒 Senha" value={senha} onChange={(e) => setSenha(e.target.value)} />
+          <button onClick={handleCadastrarResponsavel}>🛡️ Entrar como Responsável</button>
         </>
       )}
 

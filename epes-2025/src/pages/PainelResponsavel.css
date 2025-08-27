@@ -1,0 +1,48 @@
+.page-container {
+  padding: 2rem;
+  font-family: sans-serif;
+}
+
+.estatisticas {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 1rem;
+}
+
+.filtros {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.time-card {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 0 5px rgba(0,0,0,0.1);
+}
+
+.membro-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  padding: 0.5rem 1rem;
+  margin: 0.5rem 0;
+  border-radius: 6px;
+  box-shadow: 0 0 3px rgba(0,0,0,0.05);
+}
+
+.membro-card.pending {
+  border-left: 4px solid orange;
+}
+
+.membro-card.aprovado {
+  border-left: 4px solid green;
+}
+
+.status {
+  font-weight: bold;
+  margin-right: 1rem;
+}

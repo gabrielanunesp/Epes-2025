@@ -12,11 +12,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<"home" | "main">("home");
 
-  // Dados simulados da rodada
-  const currentRound = 2;
-  const totalRounds = 10;
-  const creditAvailable = 120;
-
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -44,12 +39,7 @@ export default function Dashboard() {
           <Home onFinish={() => setCurrentStep("main")} />
         ) : (
           <div className="dashboard-grid">
-            <RoundStatusCard
-              currentRound={currentRound}
-              totalRounds={totalRounds}
-              creditAvailable={creditAvailable}
-              onOpenDecisions={handleOpenDecisions}
-            />
+            <RoundStatusCard onOpenDecisions={handleOpenDecisions} />
 
             <Card
               title="🏆 Ranking"
@@ -58,15 +48,15 @@ export default function Dashboard() {
             />
 
             <Card
-              title="👥 Grupos"
-              description="Gerencie os grupos e participantes."
-              onClick={() => navigate("/grupos")}
+              title="📊 Relatório"
+              description="Visualize receita, custos e lucro de forma simples e direta."
+              onClick={() => navigate("/relatorio")}
             />
 
             <Card
-              title="📋 Missões"
-              description="Acompanhe as tarefas e desafios disponíveis."
-              onClick={() => navigate("/missoes")}
+              title="🎮 Sobre o Jogo"
+              description="Entenda as regras, objetivos e como pontuar na simulação."
+              onClick={() => navigate("/informacoes")}
             />
           </div>
         )}
