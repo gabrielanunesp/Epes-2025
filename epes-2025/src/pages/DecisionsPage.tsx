@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import './DecisionPage.css';
 import { db, auth } from '../services/firebase';
-import { collection, addDoc, setDoc, doc } from 'firebase/firestore';
+import {
+  collection,
+  addDoc,
+  setDoc,
+  doc,
+  getDoc,
+} from 'firebase/firestore';
 
 export default function DecisionPage() {
   const creditAvailable = 100;
@@ -64,10 +70,22 @@ export default function DecisionPage() {
     const user = auth.currentUser;
     const codigoTurma = localStorage.getItem('codigoTurma');
 
-    console.log('🔍 Verificando usuário e turma:', user?.email, codigoTurma);
-
     if (!user || !codigoTurma) {
       alert('Usuário não autenticado ou código da turma ausente.');
+      return;
+    }
+
+    const timeRef = doc(db, 'times', codigoTurma);
+    const timeSnap = await getDoc(timeRef);
+    const timeData = timeSnap.data();
+
+    if (!timeData) {
+      alert('❌ Time não encontrado.');
+      return;
+    }
+
+    if (timeData.criadoPor !== user.uid) {
+      alert('🚫 Apenas o capitão pode salvar a rodada.');
       return;
     }
 
@@ -85,23 +103,21 @@ export default function DecisionPage() {
     };
 
     try {
-      // Salva decisão
+      // Salva decisão do capitão
       await addDoc(collection(db, 'decisoes'), decision);
 
-      // Salva jogador no ranking
+      // Salva pontuação do capitão
       await setDoc(doc(db, 'jogadores', user.uid), {
         nome: user.displayName || user.email || 'Jogador',
         pontuacao: totalUsed,
       });
 
-      // Salva time no ranking
+      // Atualiza pontuação do time sem apagar nome ou membros
       await setDoc(doc(db, 'times', codigoTurma), {
-        id: codigoTurma,
-        nome: `Time ${codigoTurma}`,
         pontuacao: totalUsed,
-      });
+      }, { merge: true });
 
-      // Salva rodada com validações
+      // Salva rodada
       await addDoc(collection(db, 'rodadas'), {
         pontuacaoRodada: typeof totalUsed === 'number' ? totalUsed : 0,
         timeId: codigoTurma || 'turma-desconhecida',
@@ -109,7 +125,7 @@ export default function DecisionPage() {
         timestamp: new Date(),
       });
 
-      alert('Decisão, ranking e rodada salvos com sucesso!');
+      alert('✅ Decisão, pontuação e rodada salvas com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar decisão:', error);
       alert('Ocorreu um erro ao salvar. Tente novamente.');

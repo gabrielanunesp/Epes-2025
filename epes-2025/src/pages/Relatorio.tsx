@@ -1,54 +1,69 @@
 import React from "react";
-import "./Relatorio.css";
 
-export default function Relatorio() {
-  // Exemplo de dados simulados — no seu sistema real, esses valores viriam de props ou contexto
-  const receita = 12000;
-  const custos = 7500;
-  const lucro = receita - custos;
+type Decisao = {
+  nome: string;
+  investimentos: string[];
+  marketing: string[];
+  producao: string;
+  pd: string[];
+};
+
+const nomesFicticios = [
+  "Lucas", "Mariana", "João", "Gabriela", "Rafaela", "Carlos", "Fernanda", "Tiago"
+];
+
+const opcoesInvestimento = ["Tecnologia", "Expansão", "Treinamento", "Infraestrutura"];
+const opcoesMarketing = ["TV", "Online", "Eventos", "Rádio"];
+const opcoesProducao = ["70%", "100%"];
+const opcoesPD = ["Produto", "Processo"];
+
+const gerarDecisao = (): Decisao => {
+  const nome = nomesFicticios[Math.floor(Math.random() * nomesFicticios.length)];
+  const investimentos = [opcoesInvestimento[Math.floor(Math.random() * opcoesInvestimento.length)]];
+  const marketing = [
+    opcoesMarketing[Math.floor(Math.random() * opcoesMarketing.length)],
+    opcoesMarketing[Math.floor(Math.random() * opcoesMarketing.length)],
+  ];
+  const producao = opcoesProducao[Math.floor(Math.random() * opcoesProducao.length)];
+  const pd = [
+    opcoesPD[Math.floor(Math.random() * opcoesPD.length)],
+    Math.random() > 0.5 ? opcoesPD[Math.floor(Math.random() * opcoesPD.length)] : null,
+  ].filter(Boolean) as string[];
+
+  return { nome, investimentos, marketing, producao, pd };
+};
+
+const Relatorio: React.FC = () => {
+  const decisoes: Decisao[] = Array.from({ length: 8 }, () => gerarDecisao());
+  const destaque = decisoes[0].nome; // jogador destaque é o primeiro da lista
 
   return (
-    <div className="page-container">
-      <h2>📊 Relatório Financeiro</h2>
-      <p>Este relatório mostra os principais resultados da sua operação no dia anterior. Use essas informações para ajustar sua estratégia nas próximas rodadas.</p>
+    <div style={{ padding: "20px" }}>
+      <h2>📊 Relatório de Decisões</h2>
 
-      <ul className="report-list">
-        <li><strong>Receita:</strong> R$ 12.000  
-          <br />💡 Representa o total de vendas realizadas. Influenciada por preço, marketing, qualidade e canais.</li>
+      {decisoes.map((d, index) => (
+        <div
+          key={index}
+          style={{
+            border: "1px solid #ccc",
+            borderRadius: "8px",
+            padding: "12px",
+            marginBottom: "16px",
+            backgroundColor: d.nome === destaque ? "#f0f8ff" : "#fff",
+          }}
+        >
+          <h3>
+            {d.nome} {d.nome === destaque && "🏆"}
+          </h3>
 
-        <li><strong>Custos:</strong> R$ 7.500  
-          <br />💡 Inclui custos variáveis (produção, atendimento, logística). A eficiência ajuda a reduzir esse valor.</li>
-
-        <li><strong>Lucro:</strong> R$ 4.500  
-          <br />💡 Receita menos custos. Parte do lucro pode ser reinvestida em upgrades (qualidade, capacidade, etc.).</li>
-      </ul>
-
-      <h2>🧠 Como interpretar o relatório</h2>
-      <ul className="report-list">
-        <li><strong>Alta receita + baixo lucro:</strong> Pode indicar custos elevados. Reveja eficiência e preço.</li>
-        <li><strong>Baixa receita:</strong> Pode ser falta de marketing, preço alto ou atributos mal distribuídos.</li>
-        <li><strong>Lucro alto:</strong> Ótimo! Considere reinvestir 20% em melhorias estratégicas.</li>
-      </ul>
-
-      <h2>🔁 Próximos passos</h2>
-      <ul className="report-list">
-        <li>Reajustar o preço para melhorar atração ou margem.</li>
-        <li>Investir em atributos que aumentem satisfação e demanda.</li>
-        <li>Corrigir gargalos como capacidade ou atendimento.</li>
-      </ul>
-
-      <p className="note">Lembre-se: o relatório é seu guia. Decisões bem embasadas levam ao topo do ranking.</p>
-
-      <hr />
-
-      <h2>📌 Seus Resultados</h2>
-      <ul className="report-list">
-        <li><strong>Receita do dia:</strong> R$ {receita.toLocaleString()}</li>
-        <li><strong>Custos totais:</strong> R$ {custos.toLocaleString()}</li>
-        <li><strong>Lucro líquido:</strong> R$ {lucro.toLocaleString()}</li>
-      </ul>
-
-      <p className="note">Esses valores são calculados com base nas decisões que você tomou na rodada anterior.</p>
+          <p><strong>Investimentos:</strong> {d.investimentos.join(", ")}</p>
+          <p><strong>Marketing:</strong> {d.marketing.join(", ")}</p>
+          <p><strong>Produção:</strong> {d.producao}</p>
+          <p><strong>P&D:</strong> {d.pd.join(", ")}</p>
+        </div>
+      ))}
     </div>
   );
-}
+};
+
+export default Relatorio;

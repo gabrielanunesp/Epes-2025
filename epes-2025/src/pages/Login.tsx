@@ -34,7 +34,7 @@ export default function Login() {
   return (
     <div className="login-container">
       <form onSubmit={handleLogin} className="login-form">
-        <h2 className="login-title">EPES Challenge 2025</h2>
+        <h2 className="login-title">SIMULADOR EPES</h2>
 
         {error && <p className="login-error">{error}</p>}
 
