@@ -1,47 +1,76 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { db } from "../services/firebase";
+import { collection, getDocs } from "firebase/firestore";
 
 type Decisao = {
-  nome: string;
-  investimentos: string[];
+  email: string;
+  investimento: string[];
   marketing: string[];
-  producao: string;
+  producao: number; // 70 ou 100
   pd: string[];
 };
 
-const nomesFicticios = [
-  "Lucas", "Mariana", "João", "Gabriela", "Rafaela", "Carlos", "Fernanda", "Tiago"
-];
+// Pontuação atualizada conforme sua tabela
+const pontosInvestimento: Record<string, number> = {
+  Tecnologia: 20,
+  Infraestrutura: 25,
+  Treinamento: 15,
+};
 
-const opcoesInvestimento = ["Tecnologia", "Expansão", "Treinamento", "Infraestrutura"];
-const opcoesMarketing = ["TV", "Online", "Eventos", "Rádio"];
-const opcoesProducao = ["70%", "100%"];
-const opcoesPD = ["Produto", "Processo"];
+const pontosMarketing: Record<string, number> = {
+  Online: 10,
+  TV: 20,
+  Eventos: 15,
+};
 
-const gerarDecisao = (): Decisao => {
-  const nome = nomesFicticios[Math.floor(Math.random() * nomesFicticios.length)];
-  const investimentos = [opcoesInvestimento[Math.floor(Math.random() * opcoesInvestimento.length)]];
-  const marketing = [
-    opcoesMarketing[Math.floor(Math.random() * opcoesMarketing.length)],
-    opcoesMarketing[Math.floor(Math.random() * opcoesMarketing.length)],
-  ];
-  const producao = opcoesProducao[Math.floor(Math.random() * opcoesProducao.length)];
-  const pd = [
-    opcoesPD[Math.floor(Math.random() * opcoesPD.length)],
-    Math.random() > 0.5 ? opcoesPD[Math.floor(Math.random() * opcoesPD.length)] : null,
-  ].filter(Boolean) as string[];
+const pontosPD: Record<string, number> = {
+  Produto: 10,
+  Processo: 15,
+};
 
-  return { nome, investimentos, marketing, producao, pd };
+const bonusProducao: Record<number, number> = {
+  70: 0,
+  100: 50,
 };
 
 const Relatorio: React.FC = () => {
-  const decisoes: Decisao[] = Array.from({ length: 8 }, () => gerarDecisao());
-  const destaque = decisoes[0].nome; // jogador destaque é o primeiro da lista
+  const [decisoes, setDecisoes] = useState<Decisao[]>([]);
+
+  useEffect(() => {
+    const fetchDecisoes = async () => {
+      const snapshot = await getDocs(collection(db, "decisoes"));
+      const dados = snapshot.docs.map(doc => doc.data() as Decisao);
+      setDecisoes(dados);
+    };
+
+    fetchDecisoes();
+  }, []);
+
+  const decisoesComLucro = decisoes.map((d) => {
+    const creditoUsado =
+      (d.investimento || []).reduce((sum, item) => sum + (pontosInvestimento[item] || 0), 0) +
+      (d.marketing || []).reduce((sum, item) => sum + (pontosMarketing[item] || 0), 0) +
+      (d.pd || []).reduce((sum, item) => sum + (pontosPD[item] || 0), 0);
+
+    const receitaBase = 100;
+    const receita =
+      receitaBase +
+      (bonusProducao[d.producao] || 0) +
+      (d.pd || []).reduce((sum, item) => sum + (pontosPD[item] || 0) * 0.5, 0);
+
+    const lucro = receita - creditoUsado;
+
+    return { ...d, creditoUsado, receita, lucro };
+  });
+
+  const ordenadoPorLucro = [...decisoesComLucro].sort((a, b) => b.lucro - a.lucro);
+  const destaque = ordenadoPorLucro[0]?.email;
 
   return (
     <div style={{ padding: "20px" }}>
       <h2>📊 Relatório de Decisões</h2>
 
-      {decisoes.map((d, index) => (
+      {ordenadoPorLucro.map((d, index) => (
         <div
           key={index}
           style={{
@@ -49,17 +78,23 @@ const Relatorio: React.FC = () => {
             borderRadius: "8px",
             padding: "12px",
             marginBottom: "16px",
-            backgroundColor: d.nome === destaque ? "#f0f8ff" : "#fff",
+            backgroundColor: d.email === destaque ? "#f0f8ff" : "#fff",
           }}
         >
           <h3>
-            {d.nome} {d.nome === destaque && "🏆"}
+            {d.email} {d.email === destaque && "🏆"}
           </h3>
 
-          <p><strong>Investimentos:</strong> {d.investimentos.join(", ")}</p>
-          <p><strong>Marketing:</strong> {d.marketing.join(", ")}</p>
-          <p><strong>Produção:</strong> {d.producao}</p>
-          <p><strong>P&D:</strong> {d.pd.join(", ")}</p>
+          <p><strong>Investimentos:</strong> {(d.investimento || []).join(", ")}</p>
+          <p><strong>Marketing:</strong> {(d.marketing || []).join(", ")}</p>
+          <p><strong>Produção:</strong> {d.producao}%</p>
+          <p><strong>P&D:</strong> {(d.pd || []).join(", ")}</p>
+
+          <hr />
+
+          <p><strong>Crédito Usado:</strong> {d.creditoUsado} / 100</p>
+          <p><strong>Receita Estimada:</strong> R$ {d.receita.toFixed(2)}</p>
+          <p><strong>Lucro:</strong> R$ {d.lucro.toFixed(2)}</p>
         </div>
       ))}
     </div>
