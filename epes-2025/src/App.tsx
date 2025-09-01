@@ -13,7 +13,8 @@ import RankingPage from './pages/RankingPage';
 import Relatorio from './pages/Relatorio';
 import Informacoes from './pages/Informacoes';
 import EscolherTime from './pages/EscolherTime';
-import PainelResponsavel from './pages/PainelResponsavel'; // ✅ Nova importação
+import PainelResponsavel from './pages/PainelResponsavel';
+import DecisionTools from './pages/DecisionTools'; // ✅ Importação correta
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -61,11 +62,15 @@ function App() {
           element={user ? <Informacoes /> : <Navigate to="/login" />}
         />
         <Route path="/escolher-time" element={<EscolherTime />} />
-
-        {/* ✅ Nova rota protegida para o painel do responsável */}
         <Route
           path="/painel-responsavel"
           element={user ? <PainelResponsavel /> : <Navigate to="/login" />}
+        />
+
+        {/* ✅ Rota protegida para ferramentas de decisão */}
+        <Route
+          path="/decisiontools"
+          element={user ? <DecisionTools /> : <Navigate to="/login" />}
         />
       </Routes>
 

@@ -72,6 +72,14 @@ export default function EscolherTime() {
         return;
       }
 
+      const nomeJaExiste = membros.some(
+        (m: any) => m.nome.trim().toLowerCase() === nome.trim().toLowerCase()
+      );
+      if (nomeJaExiste) {
+        setMensagem("⚠️ Já existe um jogador com esse nome no time. Escolha outro nome.");
+        return;
+      }
+
       await setDoc(timeRef, {
         ...dados,
         membros: [...membros, {

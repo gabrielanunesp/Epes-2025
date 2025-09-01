@@ -8,8 +8,11 @@ import {
   doc,
   getDoc,
 } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
+
 
 export default function DecisionPage() {
+  const navigate = useNavigate(); // ✅ Inicializa o hook
   const creditAvailable = 100;
 
   const [investimento, setInvestimento] = useState<string[]>([]);
@@ -135,6 +138,12 @@ export default function DecisionPage() {
   return (
     <div className="container">
       <h1>📊 Decisões da Rodada</h1>
+
+      <div style={{ marginBottom: '20px' }}>
+  <button onClick={() => navigate('/decisiontools')}>
+    🧠Iniciar Rodada e Iniciar Cronômetro
+  </button>
+</div>
 
       <div className="credit-box">
         <div className="credit-info">
