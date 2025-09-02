@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './DecisionPage.css';
+import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../services/firebase';
 import {
   collection,
@@ -8,18 +8,28 @@ import {
   doc,
   getDoc,
 } from 'firebase/firestore';
-import { useNavigate } from 'react-router-dom';
-
+import DecisionCard from '../components/DecisionCard';
+import CreditBox from '../components/CreditBox';
+import Summary from '../components/Summary';
+import SaveButton from '../components/SaveButton';
+import { sumCosts } from '../utils/CostUtils';
+import './DecisionPage.css';
 
 export default function DecisionPage() {
-  const navigate = useNavigate(); // ✅ Inicializa o hook
-  const creditAvailable = 100;
+  const navigate = useNavigate();
+  const recursoInicial = 100;
+
+  // Simulação de lucro da rodada anterior
+  const simulatedLucro = 500;
+  const reinvestimentoDisponivel = Math.floor(simulatedLucro * 0.2);
+  const caixaAcumulado = Math.floor(simulatedLucro * 0.8);
 
   const [investimento, setInvestimento] = useState<string[]>([]);
   const [marketing, setMarketing] = useState<string[]>([]);
   const [producao, setProducao] = useState(70);
   const [pd, setPd] = useState<string[]>([]);
   const [totalUsed, setTotalUsed] = useState(0);
+  const [investimentoCost, setInvestimentoCost] = useState(0);
 
   const marketingOptions = [
     { label: 'Online', cost: 10 },
@@ -39,40 +49,35 @@ export default function DecisionPage() {
   ];
 
   const toggleOption = (
-    option: string,
+    label: string,
     list: string[],
     setList: React.Dispatch<React.SetStateAction<string[]>>
   ) => {
     setList(prev =>
-      prev.includes(option)
-        ? prev.filter(item => item !== option)
-        : [...prev, option]
+      prev.includes(label)
+        ? prev.filter(item => item !== label)
+        : [...prev, label]
     );
   };
 
   useEffect(() => {
-    const sumCosts = (selected: string[], options: { label: string; cost: number }[]) =>
-      selected.reduce((acc, label) => {
-        const item = options.find(opt => opt.label === label);
-        return acc + (item?.cost || 0);
-      }, 0);
-
     const marketingCost = sumCosts(marketing, marketingOptions);
-    const investimentoCost = sumCosts(investimento, investimentoOptions);
+    const investimentoTotal = sumCosts(investimento, investimentoOptions);
     const pdCost = sumCosts(pd, pdOptions);
     const producaoCost = Math.floor(producao / 10);
 
-    setTotalUsed(marketingCost + investimentoCost + producaoCost + pdCost);
+    setInvestimentoCost(investimentoTotal);
+    setTotalUsed(marketingCost + producaoCost + pdCost);
   }, [marketing, investimento, producao, pd]);
 
-  const restante = creditAvailable - totalUsed;
+  const restante = recursoInicial - totalUsed;
+  const isReinvestimentoExcedido = investimentoCost > reinvestimentoDisponivel;
 
   const handleSave = async () => {
-    if (restante < 0) return;
+    if (restante < 0 || isReinvestimentoExcedido) return;
 
     const user = auth.currentUser;
     const codigoTurma = localStorage.getItem('codigoTurma');
-
     if (!user || !codigoTurma) {
       alert('Usuário não autenticado ou código da turma ausente.');
       return;
@@ -81,13 +86,7 @@ export default function DecisionPage() {
     const timeRef = doc(db, 'times', codigoTurma);
     const timeSnap = await getDoc(timeRef);
     const timeData = timeSnap.data();
-
-    if (!timeData) {
-      alert('❌ Time não encontrado.');
-      return;
-    }
-
-    if (timeData.criadoPor !== user.uid) {
+    if (!timeData || timeData.criadoPor !== user.uid) {
       alert('🚫 Apenas o capitão pode salvar a rodada.');
       return;
     }
@@ -98,7 +97,10 @@ export default function DecisionPage() {
       producao,
       pd,
       totalUsed,
-      creditAvailable,
+      investimentoCost,
+      reinvestimentoDisponivel,
+      caixaAcumulado,
+      recursoInicial,
       email: user.email,
       uid: user.uid,
       codigoTurma,
@@ -106,21 +108,18 @@ export default function DecisionPage() {
     };
 
     try {
-      // Salva decisão do capitão
       await addDoc(collection(db, 'decisoes'), decision);
 
-      // Salva pontuação do capitão
       await setDoc(doc(db, 'jogadores', user.uid), {
         nome: user.displayName || user.email || 'Jogador',
         pontuacao: totalUsed,
       });
 
-      // Atualiza pontuação do time sem apagar nome ou membros
       await setDoc(doc(db, 'times', codigoTurma), {
         pontuacao: totalUsed,
+        caixaAcumulado,
       }, { merge: true });
 
-      // Salva rodada
       await addDoc(collection(db, 'rodadas'), {
         pontuacaoRodada: typeof totalUsed === 'number' ? totalUsed : 0,
         timeId: codigoTurma || 'turma-desconhecida',
@@ -139,58 +138,27 @@ export default function DecisionPage() {
     <div className="container">
       <h1>📊 Decisões da Rodada</h1>
 
-      <div style={{ marginBottom: '20px' }}>
-  <button onClick={() => navigate('/decisiontools')}>
-    🧠Iniciar Rodada e Iniciar Cronômetro
-  </button>
-</div>
-
-      <div className="credit-box">
-        <div className="credit-info">
-          <span>Disponível: <strong>{creditAvailable}</strong></span>
-          <span>Usado: <strong>{totalUsed}</strong></span>
-          <span className={restante < 0 ? 'alert' : 'ok'}>
-            Restante: <strong>{restante}</strong>
-          </span>
-        </div>
-        <div className="progress-bar">
-          <div
-            className={`progress-fill ${restante < 0 ? 'over' : ''}`}
-            style={{ width: `${Math.min((totalUsed / creditAvailable) * 100, 100)}%` }}
-          />
-        </div>
-        {restante < 0 && <p className="alert-text">⚠️ Crédito excedido! Ajuste suas escolhas.</p>}
-      </div>
+      <CreditBox
+        recursoInicial={recursoInicial}
+        totalUsed={totalUsed}
+        restante={restante}
+        isReinvestimentoExcedido={isReinvestimentoExcedido}
+        reinvestimentoDisponivel={reinvestimentoDisponivel}
+      />
 
       <div className="cards">
-        <div className="card">
-          <h2>💼 Investimentos</h2>
-          {investimentoOptions.map(opt => (
-            <label key={opt.label}>
-              <input
-                type="checkbox"
-                checked={investimento.includes(opt.label)}
-                onChange={() => toggleOption(opt.label, investimento, setInvestimento)}
-              />
-              {opt.label} ({opt.cost} pts)
-            </label>
-          ))}
-        </div>
-
-        <div className="card">
-          <h2>📢 Marketing</h2>
-          {marketingOptions.map(opt => (
-            <label key={opt.label}>
-              <input
-                type="checkbox"
-                checked={marketing.includes(opt.label)}
-                onChange={() => toggleOption(opt.label, marketing, setMarketing)}
-              />
-              {opt.label} ({opt.cost} pts)
-            </label>
-          ))}
-        </div>
-
+        <DecisionCard
+          title="💼 Investimentos"
+          options={investimentoOptions}
+          selected={investimento}
+          toggle={label => toggleOption(label, investimento, setInvestimento)}
+        />
+        <DecisionCard
+          title="📢 Marketing"
+          options={marketingOptions}
+          selected={marketing}
+          toggle={label => toggleOption(label, marketing, setMarketing)}
+        />
         <div className="card">
           <h2>🏭 Produção</h2>
           <input
@@ -202,42 +170,29 @@ export default function DecisionPage() {
           />
           <p>{producao}%</p>
         </div>
-
-        <div className="card">
-          <h2>🔬 P&D</h2>
-          {pdOptions.map(opt => (
-            <label key={opt.label}>
-              <input
-                type="checkbox"
-                checked={pd.includes(opt.label)}
-                onChange={() => toggleOption(opt.label, pd, setPd)}
-              />
-              {opt.label} ({opt.cost} pts)
-            </label>
-          ))}
-        </div>
+        <DecisionCard
+          title="🔬 P&D"
+          options={pdOptions}
+          selected={pd}
+          toggle={label => toggleOption(label, pd, setPd)}
+        />
       </div>
 
-      <div className="summary">
-        <h3>📋 Resumo da Decisão</h3>
-        <p>Produção: {producao}%</p>
-        <p>Marketing: {marketing.join(', ') || 'Nenhum'}</p>
-        <p>Investimentos: {investimento.join(', ') || 'Nenhum'}</p>
-        <p>P&D: {pd.join(', ') || 'Nenhum'}</p>
-        <p>
-          Créditos restantes:{" "}
-          <strong className={restante < 0 ? 'alert' : 'ok'}>{restante}</strong>
-        </p>
-      </div>
+      <Summary
+        producao={producao}
+        marketing={marketing}
+        investimento={investimento}
+        investimentoCost={investimentoCost}
+        pd={pd}
+        restante={restante}
+        reinvestimentoDisponivel={reinvestimentoDisponivel}
+        caixaAcumulado={caixaAcumulado}
+      />
 
-      <div className="save-button">
-        <button onClick={handleSave} disabled={restante < 0}>
-          💾 Salvar Decisões
-        </button>
-      </div>
+      <SaveButton
+        onSave={handleSave}
+        disabled={restante < 0 || isReinvestimentoExcedido}
+      />
     </div>
   );
 }
-
-
-
