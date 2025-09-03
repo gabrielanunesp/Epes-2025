@@ -6,9 +6,11 @@ import {
   doc,
   getDoc,
   updateDoc,
-  deleteDoc,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import ControleRodadaADM from "../components/ControleRodadaADM";
+import CronometroRodada from "../components/CronometroRodada";
+import ConfirmacaoExclusao from "../components/ConfirmacaoExclusao";
 import "./PainelResponsavel.css";
 
 export default function PainelResponsavel() {
@@ -16,6 +18,9 @@ export default function PainelResponsavel() {
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("todos");
+  const [itemParaExcluir, setItemParaExcluir] = useState<any>(null);
+  const [tipoExclusao, setTipoExclusao] = useState<"time" | "membro" | null>(null);
+  const [timeOrigem, setTimeOrigem] = useState<string | undefined>(undefined);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,18 +40,21 @@ export default function PainelResponsavel() {
         return;
       }
 
-      const timesSnapshot = await getDocs(collection(db, "times"));
-      const lista = timesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      setTimes(lista);
+      await carregarTimes();
       setCarregando(false);
     };
 
     verificarPermissao();
   }, [navigate]);
+
+  const carregarTimes = async () => {
+    const timesSnapshot = await getDocs(collection(db, "times"));
+    const lista = timesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    setTimes(lista);
+  };
 
   const aprovarMembro = async (timeId: string, membroUid: string) => {
     const timeRef = doc(db, "times", timeId);
@@ -68,31 +76,16 @@ export default function PainelResponsavel() {
     );
   };
 
-  const excluirMembro = async (timeId: string, membroUid: string) => {
-    if (!window.confirm("Tem certeza que deseja excluir este jogador?")) return;
-
-    const timeRef = doc(db, "times", timeId);
-    const snapshot = await getDoc(timeRef);
-    const dados = snapshot.data();
-
-    if (!dados || !Array.isArray(dados.membros)) return;
-
-    const membrosAtualizados = dados.membros.filter((m: any) => m.uid !== membroUid);
-
-    await updateDoc(timeRef, { membros: membrosAtualizados });
-
-    setTimes(prev =>
-      prev.map(t =>
-        t.id === timeId ? { ...t, membros: membrosAtualizados } : t
-      )
-    );
+  const solicitarExclusaoTime = (time: any) => {
+    setItemParaExcluir(time);
+    setTipoExclusao("time");
+    setTimeOrigem(undefined);
   };
 
-  const excluirTime = async (timeId: string) => {
-    if (!window.confirm("Tem certeza que deseja excluir este time?")) return;
-
-    await deleteDoc(doc(db, "times", timeId));
-    setTimes(prev => prev.filter(t => t.id !== timeId));
+  const solicitarExclusaoMembro = (timeId: string, membro: any) => {
+    setItemParaExcluir(membro);
+    setTipoExclusao("membro");
+    setTimeOrigem(timeId);
   };
 
   const filtrarMembros = (membros: any[]) => {
@@ -125,6 +118,9 @@ export default function PainelResponsavel() {
     <div className="page-container">
       <h2>🛡️ Painel do Responsável</h2>
 
+      <CronometroRodada modo="adm" />
+      <ControleRodadaADM />
+
       <div className="estatisticas">
         <p>📊 Times cadastrados: {times.length}</p>
         <p>⏳ Membros pendentes: {totalPendentes}</p>
@@ -150,7 +146,7 @@ export default function PainelResponsavel() {
         <div key={time.id} className="time-card">
           <h3>🏷️ {time.nome}</h3>
           <p>Código: {time.id}</p>
-          <button className="excluir-time" onClick={() => excluirTime(time.id)}>🗑️ Excluir Time</button>
+          <button className="excluir-time" onClick={() => solicitarExclusaoTime(time)}>🗑️ Excluir Time</button>
 
           <div className="membros-lista">
             {filtrarMembros(time.membros || []).length === 0 ? (
@@ -166,7 +162,7 @@ export default function PainelResponsavel() {
                     {m.status === "pending" && (
                       <button onClick={() => aprovarMembro(time.id, m.uid)}>✅ Aprovar</button>
                     )}
-                    <button onClick={() => excluirMembro(time.id, m.uid)}>🗑️ Excluir</button>
+                    <button onClick={() => solicitarExclusaoMembro(time.id, m)}>🗑️ Excluir</button>
                   </div>
                 </div>
               ))
@@ -174,6 +170,25 @@ export default function PainelResponsavel() {
           </div>
         </div>
       ))}
+
+      {itemParaExcluir && tipoExclusao && (
+        <ConfirmacaoExclusao
+          tipo={tipoExclusao}
+          item={itemParaExcluir}
+          timeId={timeOrigem}
+          onConfirmado={async () => {
+            setItemParaExcluir(null);
+            setTipoExclusao(null);
+            setTimeOrigem(undefined);
+            await carregarTimes();
+          }}
+          onCancelado={() => {
+            setItemParaExcluir(null);
+            setTipoExclusao(null);
+            setTimeOrigem(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }

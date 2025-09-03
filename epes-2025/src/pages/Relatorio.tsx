@@ -6,11 +6,11 @@ type Decisao = {
   email: string;
   investimento: string[];
   marketing: string[];
-  producao: number; // 70 ou 100
+  producao: number;
   pd: string[];
+  atraso?: boolean;
 };
 
-// Pontuação atualizada conforme sua tabela
 const pontosInvestimento: Record<string, number> = {
   Tecnologia: 20,
   Infraestrutura: 25,
@@ -46,57 +46,105 @@ const Relatorio: React.FC = () => {
     fetchDecisoes();
   }, []);
 
-  const decisoesComLucro = decisoes.map((d) => {
-    const creditoUsado =
+  let caixaAcumulado = 0;
+  let reinvestimentoHistorico: boolean[] = [];
+
+  const relatorioFinal = decisoes.map((d, index) => {
+    const custo =
       (d.investimento || []).reduce((sum, item) => sum + (pontosInvestimento[item] || 0), 0) +
       (d.marketing || []).reduce((sum, item) => sum + (pontosMarketing[item] || 0), 0) +
       (d.pd || []).reduce((sum, item) => sum + (pontosPD[item] || 0), 0);
 
-    const receitaBase = 100;
-    const receita =
-      receitaBase +
+    let receitaBase = 100;
+    let receitaExtra =
       (bonusProducao[d.producao] || 0) +
       (d.pd || []).reduce((sum, item) => sum + (pontosPD[item] || 0) * 0.5, 0);
 
-    const lucro = receita - creditoUsado;
+    let receitaTotal = receitaBase + receitaExtra;
 
-    return { ...d, creditoUsado, receita, lucro };
+    // Limite de crescimento: se não houve reinvestimento por 2 rodadas seguidas
+    const houveInvestimento = (d.investimento || []).length > 0;
+    reinvestimentoHistorico.push(houveInvestimento);
+    const ultimos2 = reinvestimentoHistorico.slice(-2);
+    const semInvestimentoRecentemente = ultimos2.every(v => !v);
+
+    if (semInvestimentoRecentemente) {
+      receitaTotal = Math.min(receitaTotal, 120); // teto de receita
+    }
+
+    let lucro = receitaTotal - custo;
+
+    // Penalidade por atraso
+    if (d.atraso) {
+      lucro *= 0.7; // aplica desconto de 30%
+    }
+
+    const reinvestido = lucro * 0.2;
+    const caixaRodada = lucro * 0.8;
+    caixaAcumulado += caixaRodada;
+
+    const bloqueado = caixaAcumulado < 0;
+
+    return {
+      dia: index + 1,
+      email: d.email,
+      receita: receitaTotal,
+      custo,
+      lucro,
+      reinvestido,
+      caixaFinal: caixaAcumulado,
+      bloqueado,
+      atraso: d.atraso || false,
+      tetoReceita: semInvestimentoRecentemente,
+    };
   });
-
-  const ordenadoPorLucro = [...decisoesComLucro].sort((a, b) => b.lucro - a.lucro);
-  const destaque = ordenadoPorLucro[0]?.email;
 
   return (
     <div style={{ padding: "20px" }}>
-      <h2>📊 Relatório de Decisões</h2>
+      <h2>📊 Relatório Financeiro por Rodada</h2>
 
-      {ordenadoPorLucro.map((d, index) => (
-        <div
-          key={index}
-          style={{
-            border: "1px solid #ccc",
-            borderRadius: "8px",
-            padding: "12px",
-            marginBottom: "16px",
-            backgroundColor: d.email === destaque ? "#f0f8ff" : "#fff",
-          }}
-        >
-          <h3>
-            {d.email} {d.email === destaque && "🏆"}
-          </h3>
-
-          <p><strong>Investimentos:</strong> {(d.investimento || []).join(", ")}</p>
-          <p><strong>Marketing:</strong> {(d.marketing || []).join(", ")}</p>
-          <p><strong>Produção:</strong> {d.producao}%</p>
-          <p><strong>P&D:</strong> {(d.pd || []).join(", ")}</p>
-
-          <hr />
-
-          <p><strong>Crédito Usado:</strong> {d.creditoUsado} / 100</p>
-          <p><strong>Receita Estimada:</strong> R$ {d.receita.toFixed(2)}</p>
-          <p><strong>Lucro:</strong> R$ {d.lucro.toFixed(2)}</p>
-        </div>
-      ))}
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ backgroundColor: "#eee" }}>
+            <th>Dia</th>
+            <th>Email</th>
+            <th>Receita</th>
+            <th>Custo</th>
+            <th>Lucro</th>
+            <th>Reinvestido</th>
+            <th>Caixa Final</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {relatorioFinal.map((r, index) => (
+            <tr
+              key={index}
+              style={{
+                backgroundColor: r.bloqueado ? "#ffe6e6" : r.atraso ? "#fff8dc" : "#fff",
+              }}
+            >
+              <td>{r.dia}</td>
+              <td>{r.email}</td>
+              <td>R$ {r.receita.toFixed(2)}</td>
+              <td>R$ {r.custo.toFixed(2)}</td>
+              <td>
+                R$ {r.lucro.toFixed(2)}
+                {r.atraso && " ⚠️ Atraso"}
+              </td>
+              <td>R$ {r.reinvestido.toFixed(2)}</td>
+              <td>R$ {r.caixaFinal.toFixed(2)}</td>
+              <td>
+                {r.bloqueado
+                  ? "🚫 Bloqueado"
+                  : r.tetoReceita
+                  ? "📉 Receita Limitada"
+                  : "✅ Ativo"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };

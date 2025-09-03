@@ -7,19 +7,20 @@ import {
   setDoc,
   doc,
   getDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import DecisionCard from '../components/DecisionCard';
 import CreditBox from '../components/CreditBox';
 import Summary from '../components/Summary';
 import SaveButton from '../components/SaveButton';
 import { sumCosts } from '../utils/CostUtils';
+import CronometroRodada from '../components/CronometroRodada';
 import './DecisionPage.css';
 
 export default function DecisionPage() {
   const navigate = useNavigate();
   const recursoInicial = 100;
 
-  // Simulação de lucro da rodada anterior
   const simulatedLucro = 500;
   const reinvestimentoDisponivel = Math.floor(simulatedLucro * 0.2);
   const caixaAcumulado = Math.floor(simulatedLucro * 0.8);
@@ -30,35 +31,16 @@ export default function DecisionPage() {
   const [pd, setPd] = useState<string[]>([]);
   const [totalUsed, setTotalUsed] = useState(0);
   const [investimentoCost, setInvestimentoCost] = useState(0);
+  const [rodadaAtiva, setRodadaAtiva] = useState(false);
 
-  const marketingOptions = [
-    { label: 'Online', cost: 10 },
-    { label: 'TV', cost: 20 },
-    { label: 'Eventos', cost: 15 },
-  ];
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, 'configuracoes', 'geral'), (docSnap) => {
+      const dados = docSnap.data();
+      setRodadaAtiva(dados?.rodadaAtiva === true);
+    });
 
-  const investimentoOptions = [
-    { label: 'Tecnologia', cost: 20 },
-    { label: 'Infraestrutura', cost: 25 },
-    { label: 'Treinamento', cost: 15 },
-  ];
-
-  const pdOptions = [
-    { label: 'Produto', cost: 10 },
-    { label: 'Processo', cost: 15 },
-  ];
-
-  const toggleOption = (
-    label: string,
-    list: string[],
-    setList: React.Dispatch<React.SetStateAction<string[]>>
-  ) => {
-    setList(prev =>
-      prev.includes(label)
-        ? prev.filter(item => item !== label)
-        : [...prev, label]
-    );
-  };
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const marketingCost = sumCosts(marketing, marketingOptions);
@@ -134,9 +116,41 @@ export default function DecisionPage() {
     }
   };
 
+  const marketingOptions = [
+    { label: 'Online', cost: 10 },
+    { label: 'TV', cost: 20 },
+    { label: 'Eventos', cost: 15 },
+  ];
+
+  const investimentoOptions = [
+    { label: 'Tecnologia', cost: 20 },
+    { label: 'Infraestrutura', cost: 25 },
+    { label: 'Treinamento', cost: 15 },
+  ];
+
+  const pdOptions = [
+    { label: 'Produto', cost: 10 },
+    { label: 'Processo', cost: 15 },
+  ];
+
+  const toggleOption = (
+    label: string,
+    list: string[],
+    setList: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    setList(prev =>
+      prev.includes(label)
+        ? prev.filter(item => item !== label)
+        : [...prev, label]
+    );
+  };
+
   return (
     <div className="container">
       <h1>📊 Decisões da Rodada</h1>
+
+      {/* ⏱️ Cronômetro com modo jogador */}
+      <CronometroRodada modo="jogador" />
 
       <CreditBox
         recursoInicial={recursoInicial}
