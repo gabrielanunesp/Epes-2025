@@ -1,0 +1,25 @@
+.welcome-message {
+  background-color: #d4edda; /* verde claro */
+  color: #155724; /* verde escuro para contraste */
+  font-size: 1rem;
+  font-weight: 500;
+  border: 2px solid #28a745;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 0;
+  animation: fadeIn 1s ease-in-out;
+  box-shadow: 0 0 10px rgba(40, 167, 69, 0.2);
+  line-height: 1.6;
+}
+
+/* Animação suave de entrada */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

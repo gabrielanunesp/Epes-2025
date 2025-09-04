@@ -4,6 +4,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../services/firebase";
 import Button from "../components/Button";
 import Input from "../components/Input";
+import WelcomeMessage from "../components/WelcomeMessage";
 import './Login.css';
 
 export default function Login() {
@@ -32,48 +33,54 @@ export default function Login() {
   };
 
   return (
-    <div className="login-container">
-      <form onSubmit={handleLogin} className="login-form">
-        <h2 className="login-title">SIMULADOR EPES</h2>
+    <div className="login-wrapper">
+      <div className="login-side">
+        <WelcomeMessage />
+      </div>
 
-        {error && <p className="login-error">{error}</p>}
+      <div className="login-container">
+        <form onSubmit={handleLogin} className="login-form">
+          <h2 className="login-title">SIMULADOR EPES</h2>
 
-        <Input 
-          type="email" 
-          placeholder="E-mail" 
-          value={email} 
-          onChange={(e) => setEmail(e.target.value)}
-        />
+          {error && <p className="login-error">{error}</p>}
 
-        <Input 
-          type="password" 
-          placeholder="Senha" 
-          value={password} 
-          onChange={(e) => setPassword(e.target.value)}
-        />
+          <Input 
+            type="email" 
+            placeholder="E-mail" 
+            value={email} 
+            onChange={(e) => setEmail(e.target.value)}
+          />
 
-        <Input 
-          type="text" 
-          placeholder="Código da turma" 
-          value={classCode} 
-          onChange={(e) => setClassCode(e.target.value)}
-        />
+          <Input 
+            type="password" 
+            placeholder="Senha" 
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-        <div className="login-buttons">
-          <Button type="submit" className="btn-primary">
-            Entrar no jogo
-          </Button>
-          <Button type="button" className="btn-secondary" onClick={handleEscolherTime}>
-            Criar/Ingressar em um time
-          </Button>
-        </div>
+          <Input 
+            type="text" 
+            placeholder="Código da turma" 
+            value={classCode} 
+            onChange={(e) => setClassCode(e.target.value)}
+          />
 
-        <footer className="login-footer">
-          <a href="#">Ajuda</a>
-          <a href="#">Política</a>
-          <a href="#">Acessibilidade</a>
-        </footer>
-      </form>
+          <div className="login-buttons">
+            <Button type="submit" className="btn-primary">
+              Entrar no jogo
+            </Button>
+            <Button type="button" className="btn-secondary" onClick={handleEscolherTime}>
+              Criar/Ingressar em um time
+            </Button>
+          </div>
+
+          <footer className="login-footer">
+            <a href="#">Ajuda</a>
+            <a href="#">Política</a>
+            <a href="#">Acessibilidade</a>
+          </footer>
+        </form>
+      </div>
     </div>
   );
 }

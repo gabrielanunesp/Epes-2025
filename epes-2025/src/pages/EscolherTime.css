@@ -77,3 +77,15 @@ button:hover {
   background: #0078d4;
   color: white;
 }
+
+
+.mensagem-explicativa {
+  background-color: #e0f0ff; /* azul claro */
+  border: 1px solid #b3d4fc; /* borda azul suave */
+  padding: 16px;
+  border-radius: 8px;
+  color: #003366; /* azul escuro para o texto */
+  font-size: 16px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}

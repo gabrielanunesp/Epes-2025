@@ -118,6 +118,22 @@ export default function PainelResponsavel() {
     <div className="page-container">
       <h2>🛡️ Painel do Responsável</h2>
 
+      {/* ✅ Botão para ir ao Dashboard */}
+      <button
+        onClick={() => navigate("/dashboard")}
+        style={{
+          marginBottom: "1rem",
+          padding: "0.5rem 1rem",
+          backgroundColor: "#007bff",
+          color: "#fff",
+          border: "none",
+          borderRadius: "4px",
+          cursor: "pointer"
+        }}
+      >
+        🧭 Ir para o Dashboard
+      </button>
+
       <CronometroRodada modo="adm" />
       <ControleRodadaADM />
 

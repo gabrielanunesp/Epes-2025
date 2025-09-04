@@ -46,6 +46,26 @@ const Home: React.FC<HomeProps> = ({ onFinish }) => {
   return (
     <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
       <h2>Distribuição de Recursos (RI)</h2>
+
+      {/* Mensagem explicativa */}
+      <div style={{
+        backgroundColor: '#f0f4c3',
+        border: '2px solid #cddc39',
+        borderRadius: '8px',
+        padding: '1rem',
+        marginBottom: '2rem',
+        color: '#827717',
+        fontWeight: 500,
+        lineHeight: 1.6
+      }}>
+        <p>
+          👋 <strong>Bem-vindo à etapa de Distribuição de Recursos Iniciais!</strong><br /><br />
+          Aqui você deve alocar R$ 100 entre os principais atributos da sua empresa: <em>Qualidade</em>, <em>Capacidade</em>, <em>Atendimento</em> e <em>Marketing</em>.<br /><br />
+          Essa distribuição define o perfil estratégico da sua equipe e impacta diretamente o desempenho nas rodadas seguintes.<br /><br />
+          ⚠️ <strong>As decisões tomadas aqui influenciam diretamente os resultados da próxima rodada.</strong> Pense estrategicamente!
+        </p>
+      </div>
+
       <p><strong>Saldo disponível:</strong> R$ {remainingBalance}</p>
 
       {attributes.map((attr, index) => (

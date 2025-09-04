@@ -15,7 +15,15 @@ import "./Dashboard.css";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState<"home" | "main">("home");
+  const [currentStep, setCurrentStep] = useState<"home" | "main">(() => {
+  const savedStep = localStorage.getItem("currentStep");
+  return savedStep === "main" ? "main" : "home";
+});
+const handleFinishAlocacao = () => {
+  setCurrentStep("main");
+  localStorage.setItem("currentStep", "main");
+};
+
 
   const [nome, setNome] = useState("");
   const [setor, setSetor] = useState("");
@@ -69,9 +77,6 @@ export default function Dashboard() {
         if (timeData?.criadoPor === user.uid) {
           setIsCapitao(true);
         }
-
-        // ❌ Removido: setCurrentStep("main")
-        // ✅ Agora a transição depende do Home.tsx chamar onFinish()
       } catch (error) {
         console.error("Erro ao buscar dados:", error);
       }
@@ -127,7 +132,8 @@ export default function Dashboard() {
 
       <main style={{ padding: "2rem" }}>
         {currentStep === "home" ? (
-          <Home onFinish={() => setCurrentStep("main")} />
+          <Home onFinish={handleFinishAlocacao} />
+
         ) : (
           <>
             {empresaInfo && (
@@ -144,68 +150,98 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
+           
+            {/* Mensagem explicativa — visível para todos */}
+<div style={{
+  backgroundColor: '#e8f5e9',
+  border: '2px solid #4caf50',
+  borderRadius: '8px',
+  padding: '1rem',
+  marginBottom: '2rem',
+  color: '#2e7d32',
+  fontWeight: 500,
+  lineHeight: 1.6
+}}>
+  <p>
+    👥 <strong>Bem-vindo ao Dashboard da sua equipe!</strong><br /><br />
+    Aqui você acompanha o desempenho da empresa, acessa relatórios, rankings e toma decisões estratégicas a cada rodada.<br /><br />
 
+    🧭 <strong>Identidade da Empresa:</strong> Antes de iniciar as decisões, é essencial definir o nome, setor, missão e estilo visual da sua empresa. Essa identidade será usada em todas as rodadas e impacta a percepção dos clientes e concorrentes.<br /><br />
+
+    👑 <strong>Capitão:</strong> Apenas o capitão pode criar ou editar a identidade da empresa. O botão <strong>"Criar Empresa"</strong> aparece exclusivamente para o capitão que criou a equipe. Se você é o capitão, preencha os campos abaixo com atenção — sua equipe depende disso!<br /><br />
+
+    ⚠️ <strong>Importante:</strong> A identidade da empresa será exibida nos rankings e relatórios. Escolha com estratégia e criatividade!<br /><br />
+
+    🕒 <strong>Rodadas:</strong> As rodadas são liberadas pelo administrador da turma. Quando uma rodada é iniciada, um cronômetro é ativado com prazo máximo até <strong>23:59</strong> do mesmo dia para envio das decisões.<br /><br />
+
+    📦 <strong>Decisões:</strong> No card de decisões, apenas o capitão pode enviar as escolhas da equipe. O botão de envio só estará disponível enquanto a rodada estiver aberta. Fique atento ao tempo e alinhe as decisões com seu grupo antes de confirmar!<br /><br />
+
+    ✅ <strong>Dica:</strong> Use os relatórios e rankings para embasar suas estratégias. Cada rodada é uma chance de ajustar o rumo da empresa e buscar a liderança!
+  </p>
+</div>
             {isCapitao && (
-              <div className="cadastro-empresa-box">
-                <h2>{empresaExistente ? "✏️ Editar Empresa" : "🚀 Criar Empresa"}</h2>
-                <p>
-                  {empresaExistente
-                    ? "Você pode atualizar os dados da empresa."
-                    : "Como capitão, você deve criar a identidade da empresa antes de iniciar as decisões."}
-                </p>
+              <>
+                <div className="cadastro-empresa-box">
+                  <h2>{empresaExistente ? "✏️ Editar Empresa" : "🚀 Criar Empresa"}</h2>
+                  <p>
+                    {empresaExistente
+                      ? "Você pode atualizar os dados da empresa."
+                      : "Como capitão, você deve criar a identidade da empresa antes de iniciar as decisões."}
+                  </p>
 
-                <label>
-                  Nome da empresa:
-                  <input
-                    type="text"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    placeholder={empresaInfo?.nome || "Nome da empresa"}
-                  />
-                </label>
+                  <label>
+                    Nome da empresa:
+                    <input
+                      type="text"
+                      value={nome}
+                      onChange={(e) => setNome(e.target.value)}
+                      placeholder={empresaInfo?.nome || "Nome da empresa"}
+                    />
+                  </label>
 
-                <label>
-                  Setor de atuação:
-                  <input
-                    type="text"
-                    value={setor}
-                    onChange={(e) => setSetor(e.target.value)}
-                    placeholder={empresaInfo?.setor || "Setor de atuação"}
-                  />
-                </label>
+                  <label>
+                    Setor de atuação:
+                    <input
+                      type="text"
+                      value={setor}
+                      onChange={(e) => setSetor(e.target.value)}
+                      placeholder={empresaInfo?.setor || "Setor de atuação"}
+                    />
+                  </label>
 
-                <label>
-                  Missão ou slogan:
-                  <textarea
-                    value={missao}
-                    onChange={(e) => setMissao(e.target.value)}
-                    placeholder={empresaInfo?.missao || "Missão ou slogan"}
-                  />
-                </label>
+                  <label>
+                    Missão ou slogan:
+                    <textarea
+                      value={missao}
+                      onChange={(e) => setMissao(e.target.value)}
+                      placeholder={empresaInfo?.missao || "Missão ou slogan"}
+                    />
+                  </label>
 
-                <label>
-                  URL da logo (opcional):
-                  <input
-                    type="text"
-                    value={logoUrl}
-                    onChange={(e) => setLogoUrl(e.target.value)}
-                    placeholder={empresaInfo?.logoUrl || "https://..."}
-                  />
-                </label>
+                  <label>
+                    URL da logo (opcional):
+                    <input
+                      type="text"
+                      value={logoUrl}
+                      onChange={(e) => setLogoUrl(e.target.value)}
+                      placeholder={empresaInfo?.logoUrl || "https://..."}
+                    />
+                  </label>
 
-                <label>
-                  Cor da identidade:
-                  <input
-                    type="color"
-                    value={cor}
-                    onChange={(e) => setCor(e.target.value)}
-                  />
-                </label>
+                  <label>
+                    Cor da identidade:
+                    <input
+                      type="color"
+                      value={cor}
+                      onChange={(e) => setCor(e.target.value)}
+                    />
+                  </label>
 
-                <button onClick={handleSaveEmpresa}>
-                  {empresaExistente ? "💾 Atualizar Empresa" : "💾 Criar Empresa"}
-                </button>
-              </div>
+                  <button onClick={handleSaveEmpresa}>
+                    {empresaExistente ? "💾 Atualizar Empresa" : "💾 Criar Empresa"}
+                  </button>
+                </div>
+              </>
             )}
 
             <div className="dashboard-grid">
