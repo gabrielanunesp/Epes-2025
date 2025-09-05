@@ -31,12 +31,12 @@ export default function DecisionPage() {
   const [pd, setPd] = useState<string[]>([]);
   const [totalUsed, setTotalUsed] = useState(0);
   const [investimentoCost, setInvestimentoCost] = useState(0);
-  const [rodadaAtiva, setRodadaAtiva] = useState(false);
+  const [rodadaAtivaLocal, setRodadaAtivaLocal] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'configuracoes', 'geral'), (docSnap) => {
       const dados = docSnap.data();
-      setRodadaAtiva(dados?.rodadaAtiva === true);
+      setRodadaAtivaLocal(dados?.rodadaAtiva === true);
     });
 
     return () => unsubscribe();
@@ -56,7 +56,20 @@ export default function DecisionPage() {
   const isReinvestimentoExcedido = investimentoCost > reinvestimentoDisponivel;
 
   const handleSave = async () => {
-    if (restante < 0 || isReinvestimentoExcedido) return;
+    // Verifica diretamente no Firestore se a rodada está ativa
+    const configRef = doc(db, 'configuracoes', 'geral');
+    const configSnap = await getDoc(configRef);
+    const configData = configSnap.data();
+
+    if (!configData?.rodadaAtiva) {
+      alert('🚫 A rodada está fechada. Aguarde o responsável abrir.');
+      return;
+    }
+
+    if (restante < 0 || isReinvestimentoExcedido) {
+      alert('⚠️ Verifique os pontos alocados. Há excesso ou saldo negativo.');
+      return;
+    }
 
     const user = auth.currentUser;
     const codigoTurma = localStorage.getItem('codigoTurma');
@@ -149,7 +162,19 @@ export default function DecisionPage() {
     <div className="container">
       <h1>📊 Decisões da Rodada</h1>
 
-      {/* ⏱️ Cronômetro com modo jogador */}
+      {!rodadaAtivaLocal && (
+        <div style={{
+          backgroundColor: '#ffe0e0',
+          padding: '10px',
+          borderRadius: '5px',
+          marginBottom: '15px',
+          textAlign: 'center',
+          fontWeight: 'bold'
+        }}>
+          🚫 A rodada está fechada. Aguarde o responsável abrir para salvar suas decisões.
+        </div>
+      )}
+
       <CronometroRodada modo="jogador" />
 
       <CreditBox
@@ -205,7 +230,7 @@ export default function DecisionPage() {
 
       <SaveButton
         onSave={handleSave}
-        disabled={restante < 0 || isReinvestimentoExcedido}
+        disabled={!rodadaAtivaLocal || restante < 0 || isReinvestimentoExcedido}
       />
     </div>
   );

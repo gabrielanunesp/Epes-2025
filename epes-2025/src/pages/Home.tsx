@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import Button from '../components/Button';
 
 interface Attribute {
@@ -9,9 +11,11 @@ interface Attribute {
 
 interface HomeProps {
   onFinish: () => void;
+  userId: string;
+  codigoTurma: string;
 }
 
-const Home: React.FC<HomeProps> = ({ onFinish }) => {
+const Home: React.FC<HomeProps> = ({ onFinish, userId, codigoTurma }) => {
   const seedBalance = 100;
   const [attributes, setAttributes] = useState<Attribute[]>([
     { name: 'Qualidade', value: 0, max: seedBalance },
@@ -38,16 +42,26 @@ const Home: React.FC<HomeProps> = ({ onFinish }) => {
     setAttributes(newAttributes);
   };
 
-  const handleSave = () => {
-    console.log('Decisões salvas:', attributes);
-    onFinish();
+  const handleSave = async () => {
+    try {
+      const timeRef = doc(db, 'times', codigoTurma);
+      await setDoc(timeRef, {
+        atributosIniciais: attributes,
+        atributosIniciaisDefinidos: true,
+        criadoPor: userId,
+      }, { merge: true });
+
+      console.log('Alocação inicial salva:', attributes);
+      onFinish();
+    } catch (error) {
+      console.error('Erro ao salvar alocação inicial:', error);
+    }
   };
 
   return (
     <div style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
       <h2>Distribuição de Recursos (RI)</h2>
 
-      {/* Mensagem explicativa */}
       <div style={{
         backgroundColor: '#f0f4c3',
         border: '2px solid #cddc39',

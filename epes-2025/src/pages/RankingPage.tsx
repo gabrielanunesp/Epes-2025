@@ -25,6 +25,7 @@ interface Time {
   complianceScore?: number;
   criadoPor: string;
   id: string;
+  codigoTurma: string;
 }
 
 interface TimeComScore extends Time {
@@ -55,13 +56,15 @@ export default function RankingPage() {
       if (!codigoTurma || !usuarioLogado) return;
 
       try {
-        const timesSnap = await getDocs(collection(db, "times"));
+        const timesQuery = query(
+          collection(db, "times"),
+          where("codigoTurma", "==", codigoTurma)
+        );
+        const timesSnap = await getDocs(timesQuery);
         const lista: TimeComScore[] = [];
 
         for (const docSnap of timesSnap.docs) {
           const timeData = docSnap.data() as Time;
-
-          if (timeData.id !== codigoTurma) continue;
 
           const empresaQuery = query(
             collection(db, "empresas"),

@@ -15,10 +15,7 @@ import "./Dashboard.css";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState<"home" | "main">(() => {
-  const savedStep = localStorage.getItem("currentStep");
-  return savedStep === "main" ? "main" : "home";
-});
+ const [currentStep, setCurrentStep] = useState<"home" | "main" | null>(null);
 const handleFinishAlocacao = () => {
   setCurrentStep("main");
   localStorage.setItem("currentStep", "main");
@@ -75,8 +72,16 @@ const handleFinishAlocacao = () => {
         const timeSnap = await getDoc(timeRef);
         const timeData = timeSnap.exists() ? timeSnap.data() : null;
         if (timeData?.criadoPor === user.uid) {
-          setIsCapitao(true);
-        }
+  setIsCapitao(true);
+
+  if (timeData?.atributosIniciaisDefinidos) {
+    setCurrentStep("main");
+  } else {
+    setCurrentStep("home");
+  }
+} else {
+  setCurrentStep("main"); // para não-capitão
+}
       } catch (error) {
         console.error("Erro ao buscar dados:", error);
       }
@@ -131,11 +136,16 @@ const handleFinishAlocacao = () => {
       </header>
 
       <main style={{ padding: "2rem" }}>
-        {currentStep === "home" ? (
-          <Home onFinish={handleFinishAlocacao} />
-
-        ) : (
-          <>
+       {currentStep === null ? (
+  <p>Carregando...</p>
+) : currentStep === "home" ? (
+  <Home
+    onFinish={handleFinishAlocacao}
+    userId={user?.uid}
+    codigoTurma={codigoTurma || ""}
+  />
+) : (
+  <>
             {empresaInfo && (
               <div
                 className="empresa-identidade"
@@ -163,21 +173,22 @@ const handleFinishAlocacao = () => {
   lineHeight: 1.6
 }}>
   <p>
-    👥 <strong>Bem-vindo ao Dashboard da sua equipe!</strong><br /><br />
-    Aqui você acompanha o desempenho da empresa, acessa relatórios, rankings e toma decisões estratégicas a cada rodada.<br /><br />
+  👥 <strong>Bem-vindo ao Dashboard da sua equipe!</strong><br /><br />
+  Aqui você acompanha o desempenho da empresa, acessa relatórios, rankings e toma decisões estratégicas a cada rodada.<br /><br />
 
-    🧭 <strong>Identidade da Empresa:</strong> Antes de iniciar as decisões, é essencial definir o nome, setor, missão e estilo visual da sua empresa. Essa identidade será usada em todas as rodadas e impacta a percepção dos clientes e concorrentes.<br /><br />
+  🧭 <strong>Identidade da Empresa:</strong> Antes de iniciar as decisões, defina o nome, setor, missão e estilo visual da sua empresa. Essa identidade será usada em todas as rodadas e impacta a percepção dos clientes e concorrentes.<br /><br />
 
-    👑 <strong>Capitão:</strong> Apenas o capitão pode criar ou editar a identidade da empresa. O botão <strong>"Criar Empresa"</strong> aparece exclusivamente para o capitão que criou a equipe. Se você é o capitão, preencha os campos abaixo com atenção — sua equipe depende disso!<br /><br />
+  👑 <strong>Capitão:</strong> Apenas o capitão pode criar ou editar a identidade da empresa. O botão <strong>"Criar Empresa"</strong> aparece exclusivamente para o capitão que criou a equipe. Preencha com atenção — sua equipe depende disso!<br /><br />
 
-    ⚠️ <strong>Importante:</strong> A identidade da empresa será exibida nos rankings e relatórios. Escolha com estratégia e criatividade!<br /><br />
+  ⚠️ <strong>Importante:</strong> A identidade será exibida nos rankings e relatórios. Escolha com estratégia e criatividade!<br /><br />
 
-    🕒 <strong>Rodadas:</strong> As rodadas são liberadas pelo administrador da turma. Quando uma rodada é iniciada, um cronômetro é ativado com prazo máximo até <strong>23:59</strong> do mesmo dia para envio das decisões.<br /><br />
+  🕒 <strong>Rodadas:</strong> São liberadas pelo administrador da turma. Ao iniciar, um cronômetro é ativado com prazo máximo até <strong>23:59</strong> do mesmo dia. Mesmo após o capitão salvar as decisões, o cronômetro continua ativo até o fim. Após esse horário, a rodada é encerrada e os resultados ficam disponíveis nas páginas de <strong>Relatórios</strong> e <strong>Ranking</strong>.<br /><br />
 
-    📦 <strong>Decisões:</strong> No card de decisões, apenas o capitão pode enviar as escolhas da equipe. O botão de envio só estará disponível enquanto a rodada estiver aberta. Fique atento ao tempo e alinhe as decisões com seu grupo antes de confirmar!<br /><br />
+  📦 <strong>Decisões:</strong> No card de decisões, apenas o capitão pode enviar as escolhas da equipe. O botão de envio só aparece enquanto a rodada estiver aberta. Fique atento ao tempo e alinhe as decisões com seu grupo antes de confirmar!<br /><br />
 
-    ✅ <strong>Dica:</strong> Use os relatórios e rankings para embasar suas estratégias. Cada rodada é uma chance de ajustar o rumo da empresa e buscar a liderança!
-  </p>
+  ✅ <strong>Dica:</strong> Use os relatórios e rankings para embasar suas estratégias. Cada rodada é uma chance de ajustar o rumo da empresa e buscar a liderança!
+</p>
+
 </div>
             {isCapitao && (
               <>
