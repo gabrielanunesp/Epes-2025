@@ -1,43 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600&display=swap');
+
+/* Estilo geral da página */
+body {
+  font-family: 'Montserrat', sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #E0F2FE; /* azul claro suave */
+}
+
+/* Container principal do ranking */
 .ranking-container {
   padding: 2rem;
   max-width: 600px;
-  margin: 0 auto;
-  background-color: #f9f9f9;
-  border-radius: 12px;
+  margin: 3rem auto;
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
 }
 
+/* Título estilizado */
 .ranking-title {
   text-align: center;
-  margin-bottom: 1.5rem;
-  font-size: 1.8rem;
+  margin-bottom: 2rem;
+  font-size: 2.4rem;
+  font-weight: 600;
+  color: #1D4ED8; /* azul vibrante */
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.05);
+  letter-spacing: 0.5px;
 }
 
+/* Lista de ranking */
 .ranking-list {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
+/* Item de ranking */
 .ranking-item {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 0.8rem 1rem;
-  margin-bottom: 0.5rem;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  margin-bottom: 0.75rem;
+  background-color: #F9FAFB;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: transform 0.2s ease;
 }
 
+.ranking-item:hover {
+  transform: translateY(-2px);
+}
+
+/* Posição do time */
 .ranking-position {
   font-weight: bold;
-  color: #555;
+  color: #475569;
+  font-size: 1rem;
 }
 
+/* Nome do time */
 .ranking-name {
   flex-grow: 1;
   margin-left: 1rem;
+  font-size: 1rem;
+  color: #1E293B;
 }
 
+/* Pontuação */
 .ranking-score {
   font-weight: bold;
-  color: #2e7d32;
+  color: #16A34A;
+  font-size: 1rem;
 }

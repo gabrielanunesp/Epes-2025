@@ -1,0 +1,32 @@
+.conselheiro {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 220px;
+  background-color: #fff;
+  border: 2px solid #ccc;
+  border-radius: 12px;
+  padding: 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 1000;
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+.conselheiro img {
+  width: 50px;
+  height: 50px;
+}
+
+.mensagem {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

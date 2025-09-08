@@ -1,210 +1,179 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { auth, db } from "../services/firebase";
 import {
   collection,
   getDocs,
   query,
   where,
+  updateDoc,
+  doc,
 } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
-
-interface Empresa {
-  nome: string;
-  missao: string;
-  cor: string;
-  logoUrl: string;
-  criadoPor: string;
-}
+import { db } from "../services/firebase";
 
 interface Time {
+  id: string;
+  nome: string;
   caixaAcumulado?: number;
   lucroTotal?: number;
   rodadasConcluidas?: number;
   satisfacaoMedia?: number;
   complianceScore?: number;
-  criadoPor: string;
-  id: string;
-  codigoTurma: string;
+  scoreEPES?: number;
 }
 
-interface TimeComScore extends Time {
-  scoreEPES: number;
-  empresa: Empresa;
-  isMeuTime: boolean;
+interface Rodada {
+  lucro?: number;
+  satisfacao?: number;
+  caixaFinal?: number;
+  status?: string;
+  decisaoForaDoPrazo?: boolean;
+  atraso?: boolean;
+  timeId: string;
 }
 
-export default function RankingPage() {
-  const navigate = useNavigate();
-  const [usuarioLogado, setUsuarioLogado] = useState<typeof auth.currentUser>(null);
-  const [ranking, setRanking] = useState<TimeComScore[]>([]);
-  const [codigoTurma, setCodigoTurma] = useState<string | null>(null);
+const RankingPage: React.FC = () => {
+  const [ranking, setRanking] = useState<Time[]>([]);
+  const criadoPor = "JViYshnSwJh3LoWqS9Dod3I8dPQ2"; // Substitua pelo UID do administrador
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUsuarioLogado(user);
-    });
-
-    const turma = localStorage.getItem("codigoTurma");
-    setCodigoTurma(turma);
-
-    return () => unsubscribe();
+    atualizarRanking();
   }, []);
 
-  useEffect(() => {
-    const carregarRanking = async () => {
-      if (!codigoTurma || !usuarioLogado) return;
+  const atualizarRanking = async () => {
+    const timesQuery = query(
+      collection(db, "times"),
+      where("criadoPor", "==", criadoPor)
+    );
 
-      try {
-        const timesQuery = query(
-          collection(db, "times"),
-          where("codigoTurma", "==", codigoTurma)
-        );
-        const timesSnap = await getDocs(timesQuery);
-        const lista: TimeComScore[] = [];
+    const timesSnap = await getDocs(timesQuery);
+    const times = timesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Time[];
 
-        for (const docSnap of timesSnap.docs) {
-          const timeData = docSnap.data() as Time;
+    const timesAtualizados: Time[] = [];
 
-          const empresaQuery = query(
-            collection(db, "empresas"),
-            where("criadoPor", "==", timeData.criadoPor)
-          );
-          const empresaSnap = await getDocs(empresaQuery);
-
-          const empresaData = empresaSnap.docs.length > 0
-            ? (empresaSnap.docs[0].data() as Empresa)
-            : {
-                nome: "Empresa sem nome",
-                missao: "",
-                cor: "#ccc",
-                logoUrl: "",
-                criadoPor: timeData.criadoPor,
-              };
-
-          const lucroMedio =
-            typeof timeData.lucroTotal === "number" &&
-            typeof timeData.rodadasConcluidas === "number" &&
-            timeData.rodadasConcluidas > 0
-              ? timeData.lucroTotal / timeData.rodadasConcluidas
-              : 0;
-
-          const scoreEPES =
-            (timeData.caixaAcumulado ?? 0) * 0.4 +
-            lucroMedio * 0.3 +
-            (timeData.satisfacaoMedia ?? 0) * 0.2 +
-            (timeData.complianceScore ?? 0) * 0.1;
-
-          lista.push({
-            ...timeData,
-            scoreEPES,
-            empresa: empresaData,
-            isMeuTime: timeData.criadoPor === usuarioLogado.uid,
-          });
-        }
-
-        lista.sort((a, b) => {
-          if (b.scoreEPES !== a.scoreEPES) return b.scoreEPES - a.scoreEPES;
-          if ((b.caixaAcumulado ?? 0) !== (a.caixaAcumulado ?? 0)) return (b.caixaAcumulado ?? 0) - (a.caixaAcumulado ?? 0);
-          return (b.satisfacaoMedia ?? 0) - (a.satisfacaoMedia ?? 0);
-        });
-
-        setRanking(lista);
-      } catch (error) {
-        console.error("Erro ao carregar ranking:", error);
+    for (const time of times) {
+      const dadosAtualizados = await calcularScoreDoTime(time.id);
+      if (dadosAtualizados) {
+        timesAtualizados.push({ ...time, ...dadosAtualizados });
       }
-    };
+    }
 
-    carregarRanking();
-  }, [codigoTurma, usuarioLogado]);
+    timesAtualizados.sort((a, b) => {
+      const scoreDiff = (b.scoreEPES ?? 0) - (a.scoreEPES ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+
+      const caixaDiff = (b.caixaAcumulado ?? 0) - (a.caixaAcumulado ?? 0);
+      if (caixaDiff !== 0) return caixaDiff;
+
+      return (b.satisfacaoMedia ?? 0) - (a.satisfacaoMedia ?? 0);
+    });
+
+    setRanking(timesAtualizados);
+  };
+
+  const calcularScoreDoTime = async (timeId: string) => {
+    try {
+      const rodadasQuery = query(
+        collection(db, "rodadas"),
+        where("timeId", "==", timeId)
+      );
+
+      const rodadasSnap = await getDocs(rodadasQuery);
+      const rodadas = rodadasSnap.docs.map(doc => doc.data() as Rodada);
+
+      let totalLucro = 0;
+      let totalSatisfacao = 0;
+      let rodadasValidas = 0;
+      let rodadasComCompliance = 0;
+      let caixaFinal = 0;
+
+      for (const rodada of rodadas) {
+        const lucro = rodada.lucro ?? 0;
+        const satisfacao = rodada.satisfacao ?? 0;
+        const caixa = rodada.caixaFinal ?? 0;
+        const status = rodada.status ?? "❌";
+
+        totalLucro += lucro;
+        totalSatisfacao += satisfacao;
+        caixaFinal = caixa;
+        rodadasValidas++;
+
+        const isCompliant =
+          status === "✅" &&
+          caixa >= 0 &&
+          !rodada.decisaoForaDoPrazo &&
+          !rodada.atraso;
+
+        if (isCompliant) rodadasComCompliance++;
+      }
+
+      const lucroMedio = rodadasValidas > 0 ? totalLucro / rodadasValidas : 0;
+      const satisfacaoMedia = rodadasValidas > 0 ? totalSatisfacao / rodadasValidas : 0;
+      const complianceScore = rodadasValidas > 0 ? (rodadasComCompliance / rodadasValidas) * 100 : 0;
+
+      const scoreEPES =
+        caixaFinal * 0.4 +
+        lucroMedio * 0.3 +
+        satisfacaoMedia * 0.2 +
+        complianceScore * 0.1;
+
+      const timeRef = doc(db, "times", timeId);
+      await updateDoc(timeRef, {
+        caixaAcumulado: caixaFinal,
+        lucroTotal: totalLucro,
+        rodadasConcluidas: rodadasValidas,
+        satisfacaoMedia,
+        complianceScore,
+        scoreEPES,
+      });
+
+      return {
+        caixaAcumulado: caixaFinal,
+        lucroTotal: totalLucro,
+        rodadasConcluidas: rodadasValidas,
+        satisfacaoMedia,
+        complianceScore,
+        scoreEPES,
+      };
+    } catch (error) {
+      console.error("Erro ao calcular Score EPES:", error);
+      return null;
+    }
+  };
 
   return (
     <div style={{ padding: "2rem" }}>
-      <h1>🏆 Ranking dos Times</h1>
-
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {ranking.map((time, index) => {
-          const dadosZerados =
-            (time.caixaAcumulado ?? 0) === 0 &&
-            (time.lucroTotal ?? 0) === 0 &&
-            (time.rodadasConcluidas ?? 0) === 0 &&
-            (time.satisfacaoMedia ?? 0) === 0 &&
-            (time.complianceScore ?? 0) === 0;
-
-          if (dadosZerados) {
-            return (
-              <li
-                key={index}
-                style={{
-                  backgroundColor: time.isMeuTime ? "#ffeeba" : "transparent",
-                  border: time.isMeuTime ? "2px solid #ffc107" : "none",
-                  padding: "1rem",
-                  marginBottom: "1rem",
-                  borderRadius: "8px",
-                }}
-              >
-                <p style={{ fontStyle: "italic", color: "#888" }}>
-                  Os dados ainda não foram registrados. Assim que a rodada acontecer e as decisões forem salvas, o desempenho aparecerá aqui!
-                </p>
-              </li>
-            );
-          }
-
-          return (
-            <li
-              key={index}
-              style={{
-                backgroundColor: time.isMeuTime ? "#ffeeba" : "transparent",
-                border: time.isMeuTime ? "2px solid #ffc107" : "none",
-                padding: "1rem",
-                marginBottom: "1rem",
-                borderRadius: "8px",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center" }}>
-                {time.empresa.logoUrl && (
-                  <img
-                    src={time.empresa.logoUrl}
-                    alt={`Logo da ${time.empresa.nome}`}
-                    width={40}
-                    style={{ marginRight: "1rem" }}
-                  />
-                )}
-                <div>
-                  <strong>{index + 1}.</strong>{" "}
-                  <span style={{ color: time.empresa.cor }}>
-                    {time.empresa.nome}
-                  </span>{" "}
-                  — Score EPES: {time.scoreEPES.toFixed(2)}
-                  {time.isMeuTime && <span> 👈 Você</span>}
-                </div>
-              </div>
-
-              <div style={{ marginTop: "0.5rem", fontSize: "0.9rem" }}>
-                <p>📦 Caixa: {time.caixaAcumulado?.toFixed(2) ?? "0.00"}</p>
-                <p>
-                  💰 Lucro Médio:{" "}
-                  {typeof time.lucroTotal === "number" &&
-                  typeof time.rodadasConcluidas === "number" &&
-                  time.rodadasConcluidas > 0
-                    ? (time.lucroTotal / time.rodadasConcluidas).toFixed(2)
-                    : "0.00"}
-                </p>
-                <p>😊 Satisfação: {time.satisfacaoMedia?.toFixed(2) ?? "0.00"}</p>
-                <p>✅ Compliance: {time.complianceScore?.toFixed(2) ?? "0.00"}</p>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      {ranking.length === 0 && (
-        <p style={{ marginTop: "2rem", fontStyle: "italic", color: "#666" }}>
-          Nenhum time foi registrado ainda. Crie uma empresa e comece a jogar para aparecer no ranking!
-        </p>
-      )}
-
-      <button onClick={() => navigate("/dashboard")}>← Voltar</button>
+      <h1>🏆 Ranking EPES</h1>
+      <p>
+        <strong>Critérios:</strong> 40% Caixa • 30% Lucro Médio • 20% Satisfação • 10% Compliance<br />
+        <strong>Desempate:</strong> Caixa &gt; Satisfação
+      </p>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ background: "#eee" }}>
+            <th>#</th>
+            <th>Time</th>
+            <th>Score EPES</th>
+            <th>Caixa</th>
+            <th>Lucro</th>
+            <th>Satisfação</th>
+            <th>Compliance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ranking.map((time, index) => (
+            <tr key={time.id} style={{ textAlign: "center", borderBottom: "1px solid #ccc" }}>
+              <td>{index + 1}</td>
+              <td>{time.nome}</td>
+              <td>{time.scoreEPES?.toFixed(2)}</td>
+              <td>{time.caixaAcumulado}</td>
+              <td>{time.lucroTotal}</td>
+              <td>{time.satisfacaoMedia?.toFixed(1)}</td>
+              <td>{time.complianceScore?.toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
-}
+};
+
+export default RankingPage;

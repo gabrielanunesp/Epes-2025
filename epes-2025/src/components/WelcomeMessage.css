@@ -1,25 +1,29 @@
 .welcome-message {
-  background-color: #d4edda; /* verde claro */
-  color: #155724; /* verde escuro para contraste */
-  font-size: 1rem;
-  font-weight: 500;
-  border: 2px solid #28a745;
-  border-radius: 8px;
-  padding: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 1.5rem;
   margin: 0;
   animation: fadeIn 1s ease-in-out;
-  box-shadow: 0 0 10px rgba(40, 167, 69, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   line-height: 1.6;
+  text-align: center;
+  max-width: 500px;
+  width: 100%;
 }
 
 /* Animação suave de entrada */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateX(-30px);
+    transform: translateY(-20px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }

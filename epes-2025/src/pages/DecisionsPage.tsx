@@ -15,6 +15,7 @@ import Summary from '../components/Summary';
 import SaveButton from '../components/SaveButton';
 import { sumCosts } from '../utils/CostUtils';
 import CronometroRodada from '../components/CronometroRodada';
+import Conselheiro from '../components/Conselheiro';
 import './DecisionPage.css';
 
 export default function DecisionPage() {
@@ -232,6 +233,14 @@ export default function DecisionPage() {
         onSave={handleSave}
         disabled={!rodadaAtivaLocal || restante < 0 || isReinvestimentoExcedido}
       />
+
+      <Conselheiro
+  restante={restante}
+  isReinvestimentoExcedido={isReinvestimentoExcedido}
+  rodadaAtiva={rodadaAtivaLocal}
+/>
+
+
     </div>
   );
 }

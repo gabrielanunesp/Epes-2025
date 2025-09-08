@@ -178,7 +178,7 @@ export default function EscolherTime() {
 
         {modo === "responsavel" && (
           <>
-            <h3>🧪 IMULADOR EPES</h3>
+            <h3> SOMENTE ADM </h3>
             <input type="text" placeholder="👤 Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
             <input type="email" placeholder="📧 E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
             <input type="password" placeholder="🔒 Senha" value={senha} onChange={(e) => setSenha(e.target.value)} />
