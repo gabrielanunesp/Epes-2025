@@ -56,7 +56,6 @@ const Relatorio: React.FC = () => {
   let lucrosPorEmail: Record<string, number[]> = {};
   let satisfacoesPorEmail: Record<string, number[]> = {};
   let compliancePorEmail: Record<string, number> = {};
-
   let reinvestimentoHistorico: boolean[] = [];
 
   const relatorioFinal = decisoes.map((d, index) => {
@@ -82,27 +81,20 @@ const Relatorio: React.FC = () => {
     }
 
     let lucro = receitaTotal - custo;
-
-    if (d.atraso) {
-      lucro *= 0.7;
-    }
+    if (d.atraso) lucro *= 0.7;
 
     const reinvestido = lucro * 0.2;
     const caixaRodada = lucro * 0.8;
 
-    // Atualiza caixa acumulado por email
     caixaAcumuladoPorEmail[d.email] = (caixaAcumuladoPorEmail[d.email] || 0) + caixaRodada;
 
-    // Atualiza lucros por email
     if (!lucrosPorEmail[d.email]) lucrosPorEmail[d.email] = [];
     lucrosPorEmail[d.email].push(lucro);
 
-    // Atualiza satisfação por email
     const satisfacao = calcularSatisfacao(d.investimento);
     if (!satisfacoesPorEmail[d.email]) satisfacoesPorEmail[d.email] = [];
     satisfacoesPorEmail[d.email].push(satisfacao);
 
-    // Atualiza compliance
     const penalidade = d.atraso ? 1 : 0;
     compliancePorEmail[d.email] = (compliancePorEmail[d.email] || 0) + penalidade;
 
@@ -123,7 +115,6 @@ const Relatorio: React.FC = () => {
     };
   });
 
-  // Cálculo do Score EPES por email
   const scoreEPESPorEmail = Object.keys(caixaAcumuladoPorEmail).map(email => {
     const caixa = caixaAcumuladoPorEmail[email];
     const lucros = lucrosPorEmail[email] || [];
@@ -133,15 +124,20 @@ const Relatorio: React.FC = () => {
 
     const lucroMedio = lucros.reduce((a, b) => a + b, 0) / totalRodadas;
     const satisfacaoMedia = satisfacoes.reduce((a, b) => a + b, 0) / totalRodadas;
-    const complianceScore = 10 - complianceErros; // perde 1 ponto por erro
+    const complianceScore = 10 - complianceErros;
 
-    const scoreEPES =
+    let scoreEPES =
       caixa * 0.4 +
       lucroMedio * 0.3 +
       satisfacaoMedia * 0.2 +
       complianceScore * 0.1;
 
-    return { email, scoreEPES };
+    const fairPlayAtivo = caixa > 300 && lucroMedio > 500;
+    if (fairPlayAtivo) {
+      scoreEPES *= 0.9;
+    }
+
+    return { email, scoreEPES, fairPlayAtivo };
   });
 
   return (
@@ -199,6 +195,7 @@ const Relatorio: React.FC = () => {
           <tr style={{ backgroundColor: "#eee" }}>
             <th>Email</th>
             <th>Score EPES</th>
+            <th>Fair Play</th>
           </tr>
         </thead>
         <tbody>
@@ -208,6 +205,7 @@ const Relatorio: React.FC = () => {
               <tr key={index}>
                 <td>{r.email}</td>
                 <td>{r.scoreEPES.toFixed(2)}</td>
+                <td>{r.fairPlayAtivo ? "⚠️ Aplicado" : "—"}</td>
               </tr>
             ))}
         </tbody>

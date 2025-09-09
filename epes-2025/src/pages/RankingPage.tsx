@@ -2,12 +2,11 @@ import React, { useEffect, useState } from "react";
 import {
   collection,
   getDocs,
-  query,
-  where,
   updateDoc,
   doc,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
+import { processarDecisoesComoRodadas } from "../services/calcularRodadas";
 
 interface Time {
   id: string;
@@ -32,52 +31,22 @@ interface Rodada {
 
 const RankingPage: React.FC = () => {
   const [ranking, setRanking] = useState<Time[]>([]);
-  const criadoPor = "JViYshnSwJh3LoWqS9Dod3I8dPQ2"; // Substitua pelo UID do administrador
 
   useEffect(() => {
-    atualizarRanking();
+    processarDecisoesComoRodadas().then(() => atualizarRanking());
   }, []);
 
   const atualizarRanking = async () => {
-    const timesQuery = query(
-      collection(db, "times"),
-      where("criadoPor", "==", criadoPor)
-    );
-
-    const timesSnap = await getDocs(timesQuery);
+    const timesSnap = await getDocs(collection(db, "times"));
     const times = timesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Time[];
+
+    const rodadasSnap = await getDocs(collection(db, "rodadas"));
+    const todasRodadas = rodadasSnap.docs.map(doc => doc.data() as Rodada);
 
     const timesAtualizados: Time[] = [];
 
     for (const time of times) {
-      const dadosAtualizados = await calcularScoreDoTime(time.id);
-      if (dadosAtualizados) {
-        timesAtualizados.push({ ...time, ...dadosAtualizados });
-      }
-    }
-
-    timesAtualizados.sort((a, b) => {
-      const scoreDiff = (b.scoreEPES ?? 0) - (a.scoreEPES ?? 0);
-      if (scoreDiff !== 0) return scoreDiff;
-
-      const caixaDiff = (b.caixaAcumulado ?? 0) - (a.caixaAcumulado ?? 0);
-      if (caixaDiff !== 0) return caixaDiff;
-
-      return (b.satisfacaoMedia ?? 0) - (a.satisfacaoMedia ?? 0);
-    });
-
-    setRanking(timesAtualizados);
-  };
-
-  const calcularScoreDoTime = async (timeId: string) => {
-    try {
-      const rodadasQuery = query(
-        collection(db, "rodadas"),
-        where("timeId", "==", timeId)
-      );
-
-      const rodadasSnap = await getDocs(rodadasQuery);
-      const rodadas = rodadasSnap.docs.map(doc => doc.data() as Rodada);
+      const rodadasDoTime = todasRodadas.filter(r => r.timeId === time.id);
 
       let totalLucro = 0;
       let totalSatisfacao = 0;
@@ -85,7 +54,7 @@ const RankingPage: React.FC = () => {
       let rodadasComCompliance = 0;
       let caixaFinal = 0;
 
-      for (const rodada of rodadas) {
+      for (const rodada of rodadasDoTime) {
         const lucro = rodada.lucro ?? 0;
         const satisfacao = rodada.satisfacao ?? 0;
         const caixa = rodada.caixaFinal ?? 0;
@@ -115,7 +84,7 @@ const RankingPage: React.FC = () => {
         satisfacaoMedia * 0.2 +
         complianceScore * 0.1;
 
-      const timeRef = doc(db, "times", timeId);
+      const timeRef = doc(db, "times", time.id);
       await updateDoc(timeRef, {
         caixaAcumulado: caixaFinal,
         lucroTotal: totalLucro,
@@ -125,18 +94,28 @@ const RankingPage: React.FC = () => {
         scoreEPES,
       });
 
-      return {
+      timesAtualizados.push({
+        ...time,
         caixaAcumulado: caixaFinal,
         lucroTotal: totalLucro,
         rodadasConcluidas: rodadasValidas,
         satisfacaoMedia,
         complianceScore,
         scoreEPES,
-      };
-    } catch (error) {
-      console.error("Erro ao calcular Score EPES:", error);
-      return null;
+      });
     }
+
+    timesAtualizados.sort((a, b) => {
+      const scoreDiff = (b.scoreEPES ?? 0) - (a.scoreEPES ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+
+      const caixaDiff = (b.caixaAcumulado ?? 0) - (a.caixaAcumulado ?? 0);
+      if (caixaDiff !== 0) return caixaDiff;
+
+      return (b.satisfacaoMedia ?? 0) - (a.satisfacaoMedia ?? 0);
+    });
+
+    setRanking(timesAtualizados);
   };
 
   return (
@@ -156,18 +135,24 @@ const RankingPage: React.FC = () => {
             <th>Lucro</th>
             <th>Satisfação</th>
             <th>Compliance</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
           {ranking.map((time, index) => (
             <tr key={time.id} style={{ textAlign: "center", borderBottom: "1px solid #ccc" }}>
               <td>{index + 1}</td>
-              <td>{time.nome}</td>
+              <td>{time.nome || "—"}</td>
               <td>{time.scoreEPES?.toFixed(2)}</td>
               <td>{time.caixaAcumulado}</td>
               <td>{time.lucroTotal}</td>
               <td>{time.satisfacaoMedia?.toFixed(1)}</td>
               <td>{time.complianceScore?.toFixed(1)}%</td>
+              <td>
+                {time.rodadasConcluidas === 0 || time.scoreEPES === 0
+                  ? "⏳ Aguardando participação"
+                  : "✅ Ativo"}
+              </td>
             </tr>
           ))}
         </tbody>
