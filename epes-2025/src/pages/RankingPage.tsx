@@ -4,6 +4,7 @@ import {
   getDocs,
   updateDoc,
   doc,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { processarDecisoesComoRodadas } from "../services/calcularRodadas";
@@ -31,9 +32,21 @@ interface Rodada {
 
 const RankingPage: React.FC = () => {
   const [ranking, setRanking] = useState<Time[]>([]);
+  const [liberarFinal, setLiberarFinal] = useState(false);
+  const [rodadaAtual, setRodadaAtual] = useState<number>(1);
 
   useEffect(() => {
+    const docRef = doc(db, "controleRodada", "status");
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setLiberarFinal(docSnap.data().liberarFinal);
+        setRodadaAtual(docSnap.data().rodadaAtual || 1);
+      }
+    });
+
     processarDecisoesComoRodadas().then(() => atualizarRanking());
+
+    return () => unsubscribe();
   }, []);
 
   const atualizarRanking = async () => {
@@ -117,6 +130,15 @@ const RankingPage: React.FC = () => {
 
     setRanking(timesAtualizados);
   };
+
+  if (rodadaAtual === 10 && !liberarFinal) {
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <h2>🔒 Resultados da última rodada ainda não foram liberados pelo administrador.</h2>
+        <p>Assim que forem liberados, o ranking final será exibido aqui.</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "2rem" }}>

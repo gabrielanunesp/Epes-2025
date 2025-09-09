@@ -144,6 +144,28 @@ export default function PainelResponsavel() {
         <p>👤 Jogadores cadastrados: {totalJogadores}</p>
       </div>
 
+      <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
+  <h3>🔓 Controle da Última Rodada</h3>
+  <button
+    onClick={async () => {
+      const docRef = doc(db, "controleRodada", "status");
+      await updateDoc(docRef, { liberarFinal: true });
+      alert("✅ Resultados finais liberados com sucesso!");
+    }}
+    style={{
+      padding: "0.5rem 1rem",
+      backgroundColor: "#28a745",
+      color: "#fff",
+      border: "none",
+      borderRadius: "4px",
+      cursor: "pointer"
+    }}
+  >
+    ✅ Liberar Resultados Finais
+  </button>
+</div>
+
+
       <div className="filtros">
         <input
           type="text"
