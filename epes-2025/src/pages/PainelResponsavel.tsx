@@ -165,6 +165,64 @@ export default function PainelResponsavel() {
   </button>
 </div>
 
+<div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
+  <h3>🚫 Controle de Cadastro</h3>
+  <button
+    onClick={async () => {
+      const configRef = doc(db, "configuracoes", "geral");
+
+      // Cria ou atualiza o campo cadastroBloqueado
+      await updateDoc(configRef, { cadastroBloqueado: true });
+
+      alert("🚫 Cadastro de novos times bloqueado com sucesso!");
+    }}
+    style={{
+      padding: "0.5rem 1rem",
+      backgroundColor: "#dc3545",
+      color: "#fff",
+      border: "none",
+      borderRadius: "4px",
+      cursor: "pointer"
+    }}
+  >
+    🚫 Bloquear Cadastro de Novos Times
+  </button>
+</div>
+<div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
+  <h3>🔄 Resetar Simulador</h3>
+  <button
+    onClick={async () => {
+      const confirmar = window.confirm("Tem certeza que deseja resetar o simulador?");
+      if (!confirmar) return;
+
+      const configRef = doc(db, "configuracoes", "geral");
+
+      // Atualiza os campos para resetar o simulador
+      await updateDoc(configRef, {
+        rodadaAtual: 1,
+        rodadaAtiva: false,
+        cadastroBloqueado: false
+      });
+      setTimes([]);
+setBusca("");
+setFiltro("todos");
+
+      alert("🔄 Simulador resetado com sucesso!");
+    }}
+    style={{
+      padding: "0.5rem 1rem",
+      backgroundColor: "#ffc107",
+      color: "#000",
+      border: "none",
+      borderRadius: "4px",
+      cursor: "pointer"
+    }}
+  >
+    🔄 Resetar Simulador
+  </button>
+</div>
+
+
 
       <div className="filtros">
         <input

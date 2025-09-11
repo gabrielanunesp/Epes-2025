@@ -89,3 +89,25 @@ button:hover {
   line-height: 1.6;
   margin-bottom: 24px;
 }
+
+
+
+
+.btn-ajuda {
+  background-color: #6C63FF;
+  color: white;
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  margin-bottom: 1rem;
+  transition: background-color 0.2s ease;
+  max-width: 200px;
+  width: 100%;
+  text-align: center;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}

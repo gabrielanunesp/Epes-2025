@@ -4,7 +4,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../services/firebase";
 import Button from "../components/Button";
 import Input from "../components/Input";
-import WelcomeMessage from "../components/WelcomeMessage";
+import HelpModal from "../components/HelpModal"; // novo componente
 import './Login.css';
 
 export default function Login() {
@@ -13,6 +13,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [classCode, setClassCode] = useState("");
   const [error, setError] = useState("");
+  const [showModal, setShowModal] = useState(false); // controla o modal
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,15 +33,20 @@ export default function Login() {
     navigate("/escolher-time");
   };
 
+  const handleAjudaLogin = () => {
+    setShowModal(true);
+  };
+
   return (
     <div className="login-wrapper">
       <div className="login-side">
-        <WelcomeMessage />
+        {/* Aqui você pode manter o WelcomeMessage se quiser que apareça automaticamente */}
       </div>
 
       <div className="login-container">
         <form onSubmit={handleLogin} className="login-form">
-          <h2 className="login-title">SIMULADOR EPES</h2>
+          <img src="/logoepes.png" alt="Logo EPES" className="login-logo" />
+         
 
           {error && <p className="login-error">{error}</p>}
 
@@ -70,17 +76,22 @@ export default function Login() {
               Entrar no jogo
             </Button>
             <Button type="button" className="btn-secondary" onClick={handleEscolherTime}>
-              Criar/Ingressar em um time
+              Novo Cadastro
             </Button>
           </div>
 
+          <Button type="button" className="btn-help" onClick={handleAjudaLogin}>
+            Ajuda no Login
+          </Button>
+
           <footer className="login-footer">
-            <a href="#">Ajuda</a>
             <a href="#">Política</a>
             <a href="#">Acessibilidade</a>
           </footer>
         </form>
       </div>
+
+      {showModal && <HelpModal onClose={() => setShowModal(false)} />}
     </div>
   );
 }
