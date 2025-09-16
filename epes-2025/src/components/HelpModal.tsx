@@ -9,7 +9,16 @@ export default function HelpModal({ onClose }: HelpModalProps) {
   return (
     <div className="modal-overlay">
       <div className="modal-content">
-        <button className="modal-close" onClick={onClose}>×</button>
+        <span
+          className="modal-close"
+          role="button"
+          tabIndex={0}
+          onClick={onClose}
+          onKeyDown={(e) => e.key === "Enter" && onClose()}
+        >
+          ×
+        </span>
+        <h2 className="modal-title">Ajuda para Login</h2>
         <p>
           👋 <strong>Seja bem-vindo ao Simulador EPES!</strong><br /><br />
           Esta é a tela de login antes da experiência começar.  

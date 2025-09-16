@@ -23,12 +23,30 @@ export default function EscolherTime() {
   const [nomeTime, setNomeTime] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [showAjuda, setShowAjuda] = useState(false);
+  const [erroCarregamento, setErroCarregamento] = useState(false);
+
   const navigate = useNavigate();
 
+  const camposPreenchidos = (...valores: string[]) => {
+  return valores.every((v) => v.trim() !== "");
+};
+
+
   const handleCriar = async () => {
+    if (!camposPreenchidos(nome, email, senha, nomeTime, codigo)) {
+  setMensagem("⚠️ Preencha todos os campos antes de criar o time.");
+  return;
+}
+
     try {
       const configRef = doc(db, "configuracoes", "geral");
     const configSnap = await getDoc(configRef);
+
+if (!configSnap.exists()) {
+  setErroCarregamento(true);
+  return;
+}
+
     if (configSnap.exists() && configSnap.data()?.cadastroBloqueado) {
       setMensagem("🚫 Cadastro de novos times está bloqueado após a primeira rodada.");
       return;
@@ -60,10 +78,18 @@ export default function EscolherTime() {
     }
   };
 
+
   const handleIngressar = async () => {
     try {
       const configRef = doc(db, "configuracoes", "geral");
 const configSnap = await getDoc(configRef);
+
+if (!configSnap.exists()) {
+  setErroCarregamento(true);
+  return;
+}
+
+
 if (configSnap.exists() && configSnap.data()?.cadastroBloqueado) {
   setMensagem("🚫 Cadastro de novos times está bloqueado após a primeira rodada.");
   return;
@@ -152,6 +178,13 @@ if (configSnap.exists() && configSnap.data()?.cadastroBloqueado) {
     <div className="container-escolher-time">
       <button className="btn-ajuda" onClick={() => setShowAjuda(true)}>❓ Ajuda</button>
       {showAjuda && <AjudaModal onClose={() => setShowAjuda(false)} />}
+
+        {erroCarregamento && (
+  <div className="erro-carregamento">
+    ⚠️ Não foi possível carregar os dados iniciais. Verifique sua conexão ou tente novamente mais tarde.
+  </div>
+)}
+
 
       <div className="card">
         <h2>👥 Criar ou Ingressar em um Time</h2>
