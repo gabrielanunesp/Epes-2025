@@ -22,7 +22,7 @@ export default function Conselheiro({ restante, isReinvestimentoExcedido, rodada
 
   return (
     <div className="conselheiro">
-      <img src="/public/cute-robot-isolated.png" alt="Conselheiro" />
+      <img src="/cute-robot-isolated.png" alt="Conselheiro" />
       <div className="mensagem">{mensagem}</div>
     </div>
   );
