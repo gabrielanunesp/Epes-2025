@@ -14,6 +14,8 @@ import Relatorio from './pages/Relatorio';
 import Informacoes from './pages/Informacoes';
 import EscolherTime from './pages/EscolherTime';
 import PainelResponsavel from './pages/PainelResponsavel';
+import D0Identidade from './pages/D0Identidade'; // ✅ Etapa de identidade
+import D1Decisao from './pages/D1Decisao';       // ✅ Etapa de pré-lançamento
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -36,10 +38,23 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
 
+        {/* ✅ Redirecionamento inicial */}
         <Route
           path="/"
           element={!user ? <Navigate to="/login" /> : <Navigate to="/dashboard" />}
         />
+
+        {/* ✅ Etapas do Challenge 2025 */}
+        <Route
+          path="/d0-identidade"
+          element={user ? <D0Identidade /> : <Navigate to="/login" />}
+        />
+        <Route
+          path="/d1-pre-lancamento"
+          element={user ? <D1Decisao /> : <Navigate to="/login" />}
+        />
+
+        {/* ✅ Rotas principais */}
         <Route
           path="/dashboard"
           element={user ? <Dashboard /> : <Navigate to="/login" />}
@@ -73,28 +88,3 @@ function App() {
 }
 
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

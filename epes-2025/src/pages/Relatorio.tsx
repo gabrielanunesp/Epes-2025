@@ -2,212 +2,126 @@ import React, { useEffect, useState } from "react";
 import { db } from "../services/firebase";
 import { collection, getDocs } from "firebase/firestore";
 
-type Decisao = {
-  email: string;
-  investimento: string[];
-  marketing: string[];
-  producao: number;
-  pd: string[];
+type Rodada = {
+  timeId: string;
+  ea?: number;
+  demanda?: number;
+  receita?: number;
+  custo?: number;
+  lucro?: number;
+  reinvestimento?: number;
+  caixaFinal?: number;
+  satisfacao?: number;
   atraso?: boolean;
-};
-
-const pontosInvestimento: Record<string, number> = {
-  Tecnologia: 20,
-  Infraestrutura: 25,
-  Treinamento: 15,
-};
-
-const pontosMarketing: Record<string, number> = {
-  Online: 10,
-  TV: 20,
-  Eventos: 15,
-};
-
-const pontosPD: Record<string, number> = {
-  Produto: 10,
-  Processo: 15,
-};
-
-const bonusProducao: Record<number, number> = {
-  70: 0,
-  100: 50,
-};
-
-const calcularSatisfacao = (investimentos: string[]) => {
-  const qualidade = investimentos.includes("Tecnologia") ? 80 : 50;
-  const atendimento = investimentos.includes("Treinamento") ? 70 : 40;
-  return Math.min(100, qualidade * 0.6 + atendimento * 0.4);
+  versao?: string;
+  timestamp?: any;
 };
 
 const Relatorio: React.FC = () => {
-  const [decisoes, setDecisoes] = useState<Decisao[]>([]);
+  const [rodadas, setRodadas] = useState<Rodada[]>([]);
+  const [mapaDeNomes, setMapaDeNomes] = useState<Record<string, string>>({});
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
-    const fetchDecisoes = async () => {
-      const snapshot = await getDocs(collection(db, "decisoes"));
-      const dados = snapshot.docs.map(doc => doc.data() as Decisao);
-      setDecisoes(dados);
+    const fetchRodadas = async () => {
+      try {
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0); // início do dia
+
+        const snapshot = await getDocs(collection(db, "rodadas"));
+        const dados = snapshot.docs
+          .map(doc => doc.data() as Rodada)
+          .filter(r =>
+            r.versao === "2025" &&
+            r.ea !== undefined &&
+            r.ea > 0 &&
+            r.timestamp?.toDate?.() >= hoje
+          );
+
+        setRodadas(dados);
+
+        const timesSnap = await getDocs(collection(db, "times"));
+        const nomes: Record<string, string> = {};
+        timesSnap.docs.forEach(doc => {
+          const data = doc.data();
+          nomes[doc.id] = data.nome || doc.id;
+        });
+
+        setMapaDeNomes(nomes);
+      } catch (error) {
+        console.error("Erro ao buscar rodadas:", error);
+        setErro("❌ Não foi possível carregar os dados das rodadas.");
+      } finally {
+        setCarregando(false);
+      }
     };
 
-    fetchDecisoes();
+    fetchRodadas();
   }, []);
 
-  let caixaAcumuladoPorEmail: Record<string, number> = {};
-  let lucrosPorEmail: Record<string, number[]> = {};
-  let satisfacoesPorEmail: Record<string, number[]> = {};
-  let compliancePorEmail: Record<string, number> = {};
-  let reinvestimentoHistorico: boolean[] = [];
+  if (erro) {
+    return <p style={{ padding: "2rem", color: "red" }}>{erro}</p>;
+  }
 
-  const relatorioFinal = decisoes.map((d, index) => {
-    const custo =
-      (d.investimento || []).reduce((sum, item) => sum + (pontosInvestimento[item] || 0), 0) +
-      (d.marketing || []).reduce((sum, item) => sum + (pontosMarketing[item] || 0), 0) +
-      (d.pd || []).reduce((sum, item) => sum + (pontosPD[item] || 0), 0);
+  if (carregando) {
+    return <p style={{ padding: "2rem" }}>🔄 Carregando relatório de rodadas...</p>;
+  }
 
-    let receitaBase = 100;
-    let receitaExtra =
-      (bonusProducao[d.producao] || 0) +
-      (d.pd || []).reduce((sum, item) => sum + (pontosPD[item] || 0) * 0.5, 0);
-
-    let receitaTotal = receitaBase + receitaExtra;
-
-    const houveInvestimento = (d.investimento || []).length > 0;
-    reinvestimentoHistorico.push(houveInvestimento);
-    const ultimos2 = reinvestimentoHistorico.slice(-2);
-    const semInvestimentoRecentemente = ultimos2.every(v => !v);
-
-    if (semInvestimentoRecentemente) {
-      receitaTotal = Math.min(receitaTotal, 120);
-    }
-
-    let lucro = receitaTotal - custo;
-    if (d.atraso) lucro *= 0.7;
-
-    const reinvestido = lucro * 0.2;
-    const caixaRodada = lucro * 0.8;
-
-    caixaAcumuladoPorEmail[d.email] = (caixaAcumuladoPorEmail[d.email] || 0) + caixaRodada;
-
-    if (!lucrosPorEmail[d.email]) lucrosPorEmail[d.email] = [];
-    lucrosPorEmail[d.email].push(lucro);
-
-    const satisfacao = calcularSatisfacao(d.investimento);
-    if (!satisfacoesPorEmail[d.email]) satisfacoesPorEmail[d.email] = [];
-    satisfacoesPorEmail[d.email].push(satisfacao);
-
-    const penalidade = d.atraso ? 1 : 0;
-    compliancePorEmail[d.email] = (compliancePorEmail[d.email] || 0) + penalidade;
-
-    const bloqueado = caixaAcumuladoPorEmail[d.email] < 0;
-
-    return {
-      dia: index + 1,
-      email: d.email,
-      receita: receitaTotal,
-      custo,
-      lucro,
-      reinvestido,
-      caixaFinal: caixaAcumuladoPorEmail[d.email],
-      satisfacao,
-      atraso: d.atraso || false,
-      bloqueado,
-      tetoReceita: semInvestimentoRecentemente,
-    };
-  });
-
-  const scoreEPESPorEmail = Object.keys(caixaAcumuladoPorEmail).map(email => {
-    const caixa = caixaAcumuladoPorEmail[email];
-    const lucros = lucrosPorEmail[email] || [];
-    const satisfacoes = satisfacoesPorEmail[email] || [];
-    const complianceErros = compliancePorEmail[email] || 0;
-    const totalRodadas = lucros.length;
-
-    const lucroMedio = lucros.reduce((a, b) => a + b, 0) / totalRodadas;
-    const satisfacaoMedia = satisfacoes.reduce((a, b) => a + b, 0) / totalRodadas;
-    const complianceScore = 10 - complianceErros;
-
-    let scoreEPES =
-      caixa * 0.4 +
-      lucroMedio * 0.3 +
-      satisfacaoMedia * 0.2 +
-      complianceScore * 0.1;
-
-    const fairPlayAtivo = caixa > 300 && lucroMedio > 500;
-    if (fairPlayAtivo) {
-      scoreEPES *= 0.9;
-    }
-
-    return { email, scoreEPES, fairPlayAtivo };
-  });
+  if (rodadas.length === 0) {
+    return <p style={{ padding: "2rem" }}>📭 Nenhuma rodada válida encontrada hoje.</p>;
+  }
 
   return (
     <div style={{ padding: "20px" }}>
-      <h2>📊 Relatório Financeiro por Rodada</h2>
+      <h2>📊 Relatório de Rodadas – Challenge 2025</h2>
 
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "40px" }}>
         <thead>
           <tr style={{ backgroundColor: "#eee" }}>
-            <th>Dia</th>
-            <th>Email</th>
+            <th>Rodada</th>
+            <th>Time</th>
+            <th>EA</th>
+            <th>Demanda</th>
             <th>Receita</th>
             <th>Custo</th>
             <th>Lucro</th>
-            <th>Reinvestido</th>
+            <th>Reinvestimento</th>
             <th>Caixa Final</th>
             <th>Satisfação</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
-          {relatorioFinal.map((r, index) => (
+          {rodadas.map((r, index) => (
             <tr
               key={index}
               style={{
-                backgroundColor: r.bloqueado ? "#ffe6e6" : r.atraso ? "#fff8dc" : "#fff",
+                backgroundColor:
+                  r.caixaFinal !== undefined && r.caixaFinal < 0
+                    ? "#ffe6e6"
+                    : r.atraso
+                    ? "#fff8dc"
+                    : "#fff",
+                textAlign: "center",
               }}
             >
-              <td>{r.dia}</td>
-              <td>{r.email}</td>
-              <td>R$ {r.receita.toFixed(2)}</td>
-              <td>R$ {r.custo.toFixed(2)}</td>
+              <td>{index + 1}</td>
+              <td>{mapaDeNomes[r.timeId] || r.timeId}</td>
+              <td>{r.ea ?? "—"}</td>
+              <td>{r.demanda ?? "—"}</td>
+              <td>{r.receita !== undefined ? `R$ ${r.receita.toFixed(2)}` : "—"}</td>
+              <td>{r.custo !== undefined ? `R$ ${r.custo.toFixed(2)}` : "—"}</td>
               <td>
-                R$ {r.lucro.toFixed(2)}
-                {r.atraso && " ⚠️ Atraso"}
+                {r.lucro !== undefined ? `R$ ${r.lucro.toFixed(2)}` : "—"}
+                {r.atraso && " ⚠️"}
               </td>
-              <td>R$ {r.reinvestido.toFixed(2)}</td>
-              <td>R$ {r.caixaFinal.toFixed(2)}</td>
-              <td>{r.satisfacao.toFixed(1)}%</td>
-              <td>
-                {r.bloqueado
-                  ? "🚫 Bloqueado"
-                  : r.tetoReceita
-                  ? "📉 Receita Limitada"
-                  : "✅ Ativo"}
-              </td>
+              <td>{r.reinvestimento !== undefined ? `R$ ${r.reinvestimento.toFixed(2)}` : "—"}</td>
+              <td>{r.caixaFinal !== undefined ? `R$ ${r.caixaFinal.toFixed(2)}` : "—"}</td>
+              <td>{r.satisfacao !== undefined ? `${r.satisfacao.toFixed(1)}%` : "—"}</td>
+              <td>{r.atraso ? "⚠️ Atraso" : "✅"}</td>
             </tr>
           ))}
-        </tbody>
-      </table>
-
-      <h2>🏆 Ranking Final por Score EPES</h2>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ backgroundColor: "#eee" }}>
-            <th>Email</th>
-            <th>Score EPES</th>
-            <th>Fair Play</th>
-          </tr>
-        </thead>
-        <tbody>
-          {scoreEPESPorEmail
-            .sort((a, b) => b.scoreEPES - a.scoreEPES)
-            .map((r, index) => (
-              <tr key={index}>
-                <td>{r.email}</td>
-                <td>{r.scoreEPES.toFixed(2)}</td>
-                <td>{r.fairPlayAtivo ? "⚠️ Aplicado" : "—"}</td>
-              </tr>
-            ))}
         </tbody>
       </table>
     </div>

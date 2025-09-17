@@ -7,7 +7,7 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
-import { processarDecisoesComoRodadas } from "../services/calcularRodadas";
+
 
 interface Time {
   id: string;
@@ -44,7 +44,7 @@ const RankingPage: React.FC = () => {
       }
     });
 
-    processarDecisoesComoRodadas().then(() => atualizarRanking());
+    
 
     return () => unsubscribe();
   }, []);

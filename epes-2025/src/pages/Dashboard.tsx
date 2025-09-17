@@ -15,13 +15,7 @@ import "./Dashboard.css";
 
 export default function Dashboard() {
   const navigate = useNavigate();
- const [currentStep, setCurrentStep] = useState<"home" | "main" | null>(null);
-const handleFinishAlocacao = () => {
-  setCurrentStep("main");
-  localStorage.setItem("currentStep", "main");
-};
-
-
+  const [currentStep, setCurrentStep] = useState<"home" | "main" | null>(null);
   const [nome, setNome] = useState("");
   const [setor, setSetor] = useState("");
   const [missao, setMissao] = useState("");
@@ -36,7 +30,6 @@ const handleFinishAlocacao = () => {
     logoUrl?: string;
     cor?: string;
   } | null>(null);
-
   const [user, setUser] = useState<any>(null);
   const [codigoTurma, setCodigoTurma] = useState<string | null>(null);
 
@@ -72,16 +65,21 @@ const handleFinishAlocacao = () => {
         const timeSnap = await getDoc(timeRef);
         const timeData = timeSnap.exists() ? timeSnap.data() : null;
         if (timeData?.criadoPor === user.uid) {
-  setIsCapitao(true);
+          setIsCapitao(true);
 
-  if (timeData?.atributosIniciaisDefinidos) {
-    setCurrentStep("main");
-  } else {
-    setCurrentStep("home");
-  }
-} else {
-  setCurrentStep("main"); // para não-capitão
-}
+          if (!empresaSnap.exists() || !empresaSnap.data()?.identidadeDefinida) {
+            navigate("/d0-identidade");
+            return;
+          }
+
+          if (timeData?.atributosIniciaisDefinidos) {
+            setCurrentStep("main");
+          } else {
+            setCurrentStep("home");
+          }
+        } else {
+          setCurrentStep("main");
+        }
       } catch (error) {
         console.error("Erro ao buscar dados:", error);
       }
@@ -103,8 +101,18 @@ const handleFinishAlocacao = () => {
     navigate("/decisoes");
   };
 
+  const handleFinishAlocacao = () => {
+    setCurrentStep("main");
+    localStorage.setItem("currentStep", "main");
+  };
+
   const handleSaveEmpresa = async () => {
     if (!user || !codigoTurma) return;
+
+    if (!nome || !setor || !missao) {
+      alert("⚠️ Preencha todos os campos obrigatórios.");
+      return;
+    }
 
     const empresaData = {
       nome,
@@ -113,6 +121,7 @@ const handleFinishAlocacao = () => {
       logoUrl,
       cor,
       criadoPor: user.uid,
+      identidadeDefinida: true,
       timestamp: new Date(),
     };
 
@@ -136,22 +145,31 @@ const handleFinishAlocacao = () => {
       </header>
 
       <main style={{ padding: "2rem" }}>
-       {currentStep === null ? (
-  <p>Carregando...</p>
-) : currentStep === "home" ? (
-  <Home
-    onFinish={handleFinishAlocacao}
-    userId={user?.uid}
-    codigoTurma={codigoTurma || ""}
-  />
-) : (
-  <>
+        {currentStep === null ? (
+          <p>Carregando...</p>
+        ) : currentStep === "home" ? (
+          <Home
+            onFinish={handleFinishAlocacao}
+            userId={user?.uid}
+            codigoTurma={codigoTurma || ""}
+          />
+        ) : (
+          <>
             {empresaInfo && (
               <div
                 className="empresa-identidade"
                 style={{ borderLeft: `6px solid ${empresaInfo.cor || "#4caf50"}` }}
               >
                 <div className="empresa-header">
+                  {empresaInfo.logoUrl && (
+                    <div style={{ fontSize: '2rem', marginBottom: '10px' }}>
+                      {empresaInfo.logoUrl.startsWith("http") ? (
+                        <img src={empresaInfo.logoUrl} alt="Logo" style={{ height: "50px" }} />
+                      ) : (
+                        empresaInfo.logoUrl
+                      )}
+                    </div>
+                  )}
                   <div>
                     <h2>{empresaInfo.nome}</h2>
                     <p><strong>Setor:</strong> {empresaInfo.setor}</p>
@@ -160,18 +178,17 @@ const handleFinishAlocacao = () => {
                 </div>
               </div>
             )}
-           
-            {/* Mensagem explicativa — visível para todos */}
-<div style={{
-  backgroundColor: '#e8f5e9',
-  border: '2px solid #4caf50',
-  borderRadius: '8px',
-  padding: '1rem',
-  marginBottom: '2rem',
-  color: '#2e7d32',
-  fontWeight: 500,
-  lineHeight: 1.6
-}}>
+
+            <div style={{
+              backgroundColor: '#e8f5e9',
+              border: '2px solid #4caf50',
+              borderRadius: '8px',
+              padding: '1rem',
+              marginBottom: '2rem',
+              color: '#2e7d32',
+              fontWeight: 500,
+              lineHeight: 1.6
+            }}>
   <p>
   👥 <strong>Bem-vindo ao Dashboard da sua equipe!</strong><br /><br />
   Aqui você acompanha o desempenho da empresa, acessa relatórios, rankings e toma decisões estratégicas a cada rodada.<br /><br />

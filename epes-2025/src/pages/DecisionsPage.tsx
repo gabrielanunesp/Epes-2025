@@ -7,6 +7,7 @@ import {
   setDoc,
   doc,
   getDoc,
+  getDocs, // ✅ adicione aqui
   onSnapshot,
 } from 'firebase/firestore';
 import DecisionCard from '../components/DecisionCard';
@@ -16,23 +17,36 @@ import SaveButton from '../components/SaveButton';
 import { sumCosts } from '../utils/CostUtils';
 import CronometroRodada from '../components/CronometroRodada';
 import Conselheiro from '../components/Conselheiro';
+import { calcularRodada } from '../services/calcularRodadas';
+import UpgradeLimitBar from '../components/UpgradeLimitBar';
+import PriceSelector from '../components/PriceSelector';
 import './DecisionPage.css';
 
 export default function DecisionPage() {
   const navigate = useNavigate();
   const recursoInicial = 100;
+  const precoBase = 100;
 
-  const simulatedLucro = 500;
-  const reinvestimentoDisponivel = Math.floor(simulatedLucro * 0.2);
-  const caixaAcumulado = Math.floor(simulatedLucro * 0.8);
-
+  const [lucroAnterior, setLucroAnterior] = useState(0);
   const [investimento, setInvestimento] = useState<string[]>([]);
   const [marketing, setMarketing] = useState<string[]>([]);
   const [producao, setProducao] = useState(70);
   const [pd, setPd] = useState<string[]>([]);
   const [totalUsed, setTotalUsed] = useState(0);
   const [investimentoCost, setInvestimentoCost] = useState(0);
+  const [resultadoPreview, setResultadoPreview] = useState<any>(null);
+
   const [rodadaAtivaLocal, setRodadaAtivaLocal] = useState(false);
+  const [precoEscolhido, setPrecoEscolhido] = useState(precoBase);
+
+  const reinvestimentoDisponivel = Math.floor(lucroAnterior * 0.2);
+  const caixaAcumulado = Math.floor(lucroAnterior * 0.8);
+  const limiteUpgrades = reinvestimentoDisponivel + caixaAcumulado;
+  const custoUpgrades = investimentoCost;
+  const isUpgradeExcedido = custoUpgrades > limiteUpgrades;
+  const restante = recursoInicial - totalUsed;
+  const precoMin = precoBase * 0.8;
+  const precoMax = precoBase * 1.2;
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'configuracoes', 'geral'), (docSnap) => {
@@ -41,6 +55,20 @@ export default function DecisionPage() {
     });
 
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const fetchLucro = async () => {
+      const codigoTurma = localStorage.getItem('codigoTurma');
+      if (!codigoTurma) return;
+
+      const timeRef = doc(db, 'times', codigoTurma);
+      const timeSnap = await getDoc(timeRef);
+      const timeData = timeSnap.data();
+      setLucroAnterior(timeData?.lucroAnterior ?? 0);
+    };
+
+    fetchLucro();
   }, []);
 
   useEffect(() => {
@@ -53,11 +81,35 @@ export default function DecisionPage() {
     setTotalUsed(marketingCost + producaoCost + pdCost);
   }, [marketing, investimento, producao, pd]);
 
-  const restante = recursoInicial - totalUsed;
-  const isReinvestimentoExcedido = investimentoCost > reinvestimentoDisponivel;
+  useEffect(() => {
+  const houveBacklogAnterior = localStorage.getItem('houveBacklog') === 'true';
+
+  const preview = calcularRodada({
+    preco: precoEscolhido,
+    produto: investimentoCost,
+    marketing: sumCosts(marketing, marketingOptions),
+    capacidade: Math.floor(producao / 10),
+    equipe: sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Treinamento")),
+    beneficio: sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Infraestrutura")),
+    publicoAlvo: "classe-cd", // ou dinâmico se quiser
+    caixaAcumulado,
+    atraso: false,
+    penalidadeBacklog: houveBacklogAnterior, // ✅ aqui está a penalidade
+  });
+
+  setResultadoPreview(preview);
+}, [
+  precoEscolhido,
+  investimentoCost,
+  marketing,
+  producao,
+  investimento,
+  caixaAcumulado,
+  pd
+]);
+
 
   const handleSave = async () => {
-    // Verifica diretamente no Firestore se a rodada está ativa
     const configRef = doc(db, 'configuracoes', 'geral');
     const configSnap = await getDoc(configRef);
     const configData = configSnap.data();
@@ -67,8 +119,13 @@ export default function DecisionPage() {
       return;
     }
 
-    if (restante < 0 || isReinvestimentoExcedido) {
+    if (restante < 0 || isUpgradeExcedido) {
       alert('⚠️ Verifique os pontos alocados. Há excesso ou saldo negativo.');
+      return;
+    }
+
+    if (precoEscolhido < precoMin || precoEscolhido > precoMax) {
+      alert("⚠️ O preço escolhido está fora da faixa permitida.");
       return;
     }
 
@@ -92,6 +149,7 @@ export default function DecisionPage() {
       marketing,
       producao,
       pd,
+      precoEscolhido,
       totalUsed,
       investimentoCost,
       reinvestimentoDisponivel,
@@ -114,16 +172,54 @@ export default function DecisionPage() {
       await setDoc(doc(db, 'times', codigoTurma), {
         pontuacao: totalUsed,
         caixaAcumulado,
+        lucroAnterior,
       }, { merge: true });
 
+      const snapshot = await getDocs(collection(db, 'rodadas'));
+const rodadasAtuais = snapshot.docs
+  .map(doc => doc.data())
+  .filter(r => r.versao === "2025" && r.timeId !== codigoTurma && typeof r.ea === "number");
+
+const eaDosOutrosTimes = rodadasAtuais.map(r => r.ea);
+
+
+      const resultado = calcularRodada({
+        preco: precoEscolhido,
+        produto: investimentoCost,
+        marketing: sumCosts(marketing, marketingOptions),
+        capacidade: Math.floor(producao / 10),
+        equipe: sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Treinamento")),
+        beneficio: sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Infraestrutura")),
+        publicoAlvo: timeData.publicoAlvo ?? "classe-cd",
+        caixaAcumulado,
+        atraso: false,
+        eaDosOutrosTimes,
+      });
+
+      const houveEvento = Math.random() < 0.3; // 30% de chance
+const estaProtegido = investimento.includes("Proteção de Marca");
+
+if (houveEvento && !estaProtegido) {
+  resultado.ea = Math.max(0, resultado.ea - 10); // penalidade de EA
+  resultado.evento = "🚨 Crise de reputação! Sem proteção de marca, o EA caiu.";
+} else if (houveEvento && estaProtegido) {
+  resultado.evento = "🛡️ Evento de crise bloqueado pela proteção de marca.";
+}
+
+
+      localStorage.setItem('houveBacklog', resultado.backlog ? 'true' : 'false');
+
+
       await addDoc(collection(db, 'rodadas'), {
-        pontuacaoRodada: typeof totalUsed === 'number' ? totalUsed : 0,
-        timeId: codigoTurma || 'turma-desconhecida',
-        vitoria: totalUsed >= 80,
+        ...resultado,
+        timeId: codigoTurma,
+        versao: "2025",
+        atraso: false,
+        status: "✅",
         timestamp: new Date(),
       });
 
-      alert('✅ Decisão, pontuação e rodada salvas com sucesso!');
+      alert('✅ Decisão e rodada calculada com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar decisão:', error);
       alert('Ocorreu um erro ao salvar. Tente novamente.');
@@ -140,6 +236,8 @@ export default function DecisionPage() {
     { label: 'Tecnologia', cost: 20 },
     { label: 'Infraestrutura', cost: 25 },
     { label: 'Treinamento', cost: 15 },
+    { label: 'Proteção de Marca', cost: 20 }
+
   ];
 
   const pdOptions = [
@@ -182,8 +280,13 @@ export default function DecisionPage() {
         recursoInicial={recursoInicial}
         totalUsed={totalUsed}
         restante={restante}
-        isReinvestimentoExcedido={isReinvestimentoExcedido}
+        isReinvestimentoExcedido={isUpgradeExcedido}
         reinvestimentoDisponivel={reinvestimentoDisponivel}
+      />
+
+      <UpgradeLimitBar
+        custoUpgrades={custoUpgrades}
+        limiteUpgrades={limiteUpgrades}
       />
 
       <div className="cards">
@@ -210,6 +313,14 @@ export default function DecisionPage() {
           />
           <p>{producao}%</p>
         </div>
+
+       <PriceSelector
+  precoBase={precoBase}
+  precoEscolhido={precoEscolhido}
+  setPrecoEscolhido={setPrecoEscolhido}
+      />
+
+
         <DecisionCard
           title="🔬 P&D"
           options={pdOptions}
@@ -219,28 +330,47 @@ export default function DecisionPage() {
       </div>
 
       <Summary
-        producao={producao}
-        marketing={marketing}
-        investimento={investimento}
-        investimentoCost={investimentoCost}
-        pd={pd}
-        restante={restante}
-        reinvestimentoDisponivel={reinvestimentoDisponivel}
-        caixaAcumulado={caixaAcumulado}
-      />
+  producao={producao}
+  producaoCost={Math.floor(producao / 10)}
+  marketing={marketing}
+  marketingCost={sumCosts(marketing, marketingOptions)}
+  investimento={investimento}
+  investimentoCost={investimentoCost}
+  pd={pd}
+  pdCost={sumCosts(pd, pdOptions)}
+  precoEscolhido={precoEscolhido}
+  restante={restante}
+  reinvestimentoDisponivel={reinvestimentoDisponivel}
+  caixaAcumulado={caixaAcumulado}
+  ea={resultadoPreview?.ea}
+  caixaFinal={resultadoPreview?.caixaFinal}
+  cvu={resultadoPreview?.cvu}
+  backlog={resultadoPreview?.backlog} // ✅ aqui!
+/>
+
 
       <SaveButton
         onSave={handleSave}
-        disabled={!rodadaAtivaLocal || restante < 0 || isReinvestimentoExcedido}
+        disabled={!rodadaAtivaLocal || restante < 0 || isUpgradeExcedido}
       />
 
       <Conselheiro
-  restante={restante}
-  isReinvestimentoExcedido={isReinvestimentoExcedido}
-  rodadaAtiva={rodadaAtivaLocal}
-/>
+        restante={restante}
+        isReinvestimentoExcedido={isUpgradeExcedido}
+        rodadaAtiva={rodadaAtivaLocal}
+      />
+
 
 
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
