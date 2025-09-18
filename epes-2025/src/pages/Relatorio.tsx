@@ -13,7 +13,7 @@ type Rodada = {
   caixaFinal?: number;
   satisfacao?: number;
   atraso?: boolean;
-  versao?: string;
+  status?: string;
   timestamp?: any;
 };
 
@@ -26,18 +26,10 @@ const Relatorio: React.FC = () => {
   useEffect(() => {
     const fetchRodadas = async () => {
       try {
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0); // início do dia
-
         const snapshot = await getDocs(collection(db, "rodadas"));
         const dados = snapshot.docs
           .map(doc => doc.data() as Rodada)
-          .filter(r =>
-            r.versao === "2025" &&
-            r.ea !== undefined &&
-            r.ea > 0 &&
-            r.timestamp?.toDate?.() >= hoje
-          );
+          .filter(r => r.status === "✅");
 
         setRodadas(dados);
 
@@ -69,12 +61,12 @@ const Relatorio: React.FC = () => {
   }
 
   if (rodadas.length === 0) {
-    return <p style={{ padding: "2rem" }}>📭 Nenhuma rodada válida encontrada hoje.</p>;
+    return <p style={{ padding: "2rem" }}>📭 Nenhuma rodada válida encontrada.</p>;
   }
 
   return (
     <div style={{ padding: "20px" }}>
-      <h2>📊 Relatório de Rodadas – Challenge 2025</h2>
+      <h2>📊 Relatório de Rodadas</h2>
 
       <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "40px" }}>
         <thead>

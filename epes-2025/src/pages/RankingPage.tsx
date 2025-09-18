@@ -8,7 +8,6 @@ import {
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 
-
 interface Time {
   id: string;
   nome: string;
@@ -44,10 +43,12 @@ const RankingPage: React.FC = () => {
       }
     });
 
-    
-
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    atualizarRanking();
+  }, [liberarFinal, rodadaAtual]);
 
   const atualizarRanking = async () => {
     const timesSnap = await getDocs(collection(db, "times"));
@@ -97,8 +98,7 @@ const RankingPage: React.FC = () => {
         satisfacaoMedia * 0.2 +
         complianceScore * 0.1;
 
-      const timeRef = doc(db, "times", time.id);
-      await updateDoc(timeRef, {
+      await updateDoc(doc(db, "times", time.id), {
         caixaAcumulado: caixaFinal,
         lucroTotal: totalLucro,
         rodadasConcluidas: rodadasValidas,
@@ -131,15 +131,6 @@ const RankingPage: React.FC = () => {
     setRanking(timesAtualizados);
   };
 
-  if (rodadaAtual === 10 && !liberarFinal) {
-    return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
-        <h2>🔒 Resultados da última rodada ainda não foram liberados pelo administrador.</h2>
-        <p>Assim que forem liberados, o ranking final será exibido aqui.</p>
-      </div>
-    );
-  }
-
   return (
     <div style={{ padding: "2rem" }}>
       <h1>🏆 Ranking EPES</h1>
@@ -164,7 +155,7 @@ const RankingPage: React.FC = () => {
           {ranking.map((time, index) => (
             <tr key={time.id} style={{ textAlign: "center", borderBottom: "1px solid #ccc" }}>
               <td>{index + 1}</td>
-              <td>{time.nome || "—"}</td>
+              <td>{time.nome || time.id}</td>
               <td>{time.scoreEPES?.toFixed(2)}</td>
               <td>{time.caixaAcumulado}</td>
               <td>{time.lucroTotal}</td>

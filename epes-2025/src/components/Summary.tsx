@@ -17,6 +17,9 @@ interface Props {
   caixaFinal?: number;
   cvu?: number;
   backlog?: boolean;
+  rodadaAtiva?: boolean;
+  isCapitao?: boolean;
+  rodadaFoiSalva?: boolean;
 }
 
 export default function Summary({
@@ -36,7 +39,16 @@ export default function Summary({
   caixaFinal,
   cvu,
   backlog,
+  rodadaAtiva,
+  isCapitao,
+  rodadaFoiSalva,
 }: Props) {
+  const deveMostrarAlerta =
+    rodadaAtiva === true &&
+    isCapitao === true &&
+    backlog === true &&
+    !rodadaFoiSalva;
+
   return (
     <div className="summary">
       <h3>📋 Resumo da Decisão</h3>
@@ -72,7 +84,7 @@ export default function Summary({
         <p><strong>Caixa final projetado:</strong> R$ {caixaFinal.toFixed(2)}</p>
       )}
 
-      {backlog && (
+      {deveMostrarAlerta && (
         <div style={{
           backgroundColor: '#ffe0e0',
           padding: '8px',

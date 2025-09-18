@@ -10,7 +10,7 @@ export interface ResultadoRodada {
   backlog: boolean;
   satisfacao: number;
   evento?: string;
-  share?: number; // ✅ novo campo para participação de mercado
+  share?: number;
 }
 
 export function calcularCVU(qualidade: number, eficiencia: number): number {
@@ -33,7 +33,7 @@ export function calcularRodada(d: {
   caixaAcumulado: number;
   atraso?: boolean;
   penalidadeBacklog?: boolean;
-  eaDosOutrosTimes?: number[]; // ✅ novo campo para cálculo de share
+  eaDosOutrosTimes?: number[];
 }): ResultadoRodada {
   const {
     preco,
@@ -49,42 +49,61 @@ export function calcularRodada(d: {
     eaDosOutrosTimes = [],
   } = d;
 
-  // EA base
+  // ✅ Proteção contra dados inválidos
+  if (
+    isNaN(preco) ||
+    isNaN(produto) ||
+    isNaN(marketing) ||
+    isNaN(capacidade) ||
+    isNaN(equipe) ||
+    isNaN(beneficio) ||
+    isNaN(caixaAcumulado)
+  ) {
+    return {
+      ea: 0,
+      demanda: 0,
+      receita: 0,
+      custo: 0,
+      lucro: 0,
+      reinvestimento: 0,
+      caixaFinal: caixaAcumulado,
+      cvu: 0,
+      backlog: false,
+      satisfacao: 0,
+      evento: undefined,
+      share: 0,
+    };
+  }
+
+  // ✅ Cálculo do EA base
   let ea = produto * 0.2 + equipe * 0.3 + beneficio * 0.5;
 
-  // Penalidade por backlog anterior
   if (penalidadeBacklog) {
     if (publicoAlvo === "jovens" || publicoAlvo === "classe-cd") ea -= 15;
     if (publicoAlvo === "seniores" || publicoAlvo === "classe-ab") ea -= 5;
   }
 
-  // Modificadores por público-alvo
   if (publicoAlvo === "jovens") ea *= 1.1;
   if (publicoAlvo === "classe-cd") ea *= 1.05;
   if (publicoAlvo === "seniores") ea *= 0.95;
 
-  // Softmax de share de mercado
+  // ✅ Cálculo de participação de mercado
   const todosEAs = [...eaDosOutrosTimes, ea];
   const expEAs = todosEAs.map(v => Math.exp(v));
   const somaExp = expEAs.reduce((acc, val) => acc + val, 0);
   const share = Math.exp(ea) / somaExp;
 
-  // Demanda total do mercado
   const demandaTotal = 1000;
   const demanda = demandaTotal * share;
 
-  // Qualidade e eficiência
   const qualidade = produto / 10;
   const eficiencia = capacidade / 10;
 
-  // CVU dinâmico
   const cvu = calcularCVU(qualidade, eficiencia);
   const custoVariavel = demanda * cvu;
 
-  // Receita
   const receita = demanda * preco;
 
-  // Custo fixo
   const custoFixo =
     capacidade * 0.3 +
     equipe * 0.2 +
@@ -93,15 +112,12 @@ export function calcularRodada(d: {
 
   const custo = custoVariavel + custoFixo;
 
-  // Lucro e atraso
   let lucro = receita - custo;
   if (atraso) lucro *= 0.7;
 
-  // Reinvestimento e caixa final
   const reinvestimento = lucro * 0.2;
   const caixaFinal = caixaAcumulado + lucro - reinvestimento;
 
-  // Backlog atual
   const houveBacklog = demanda > capacidade;
 
   return {
@@ -116,6 +132,6 @@ export function calcularRodada(d: {
     backlog: houveBacklog,
     satisfacao: Math.min(100, ea / 100),
     evento: undefined,
-    share: parseFloat((share * 100).toFixed(2)), // em porcentagem
+    share: parseFloat((share * 100).toFixed(2)),
   };
 }

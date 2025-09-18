@@ -6,6 +6,7 @@ import {
   doc,
   getDoc,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import ControleRodadaADM from "../components/ControleRodadaADM";
@@ -99,6 +100,14 @@ export default function PainelResponsavel() {
     });
   };
 
+  const limparColecoes = async () => {
+    const colecoes = ["rodadas", "decisoes", "jogadores", "times"];
+    for (const nome of colecoes) {
+      const snapshot = await getDocs(collection(db, nome));
+      const promises = snapshot.docs.map((doc) => deleteDoc(doc.ref));
+      await Promise.all(promises);
+    }
+  };
   const totalPendentes = times.reduce(
     (acc, t) => acc + t.membros?.filter((m: any) => m.status === "pending").length || 0,
     0
@@ -118,7 +127,6 @@ export default function PainelResponsavel() {
     <div className="page-container">
       <h2>🛡️ Painel do Responsável</h2>
 
-      {/* ✅ Botão para ir ao Dashboard */}
       <button
         onClick={() => navigate("/dashboard")}
         style={{
@@ -145,84 +153,81 @@ export default function PainelResponsavel() {
       </div>
 
       <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
-  <h3>🔓 Controle da Última Rodada</h3>
-  <button
-    onClick={async () => {
-      const docRef = doc(db, "controleRodada", "status");
-      await updateDoc(docRef, { liberarFinal: true });
-      alert("✅ Resultados finais liberados com sucesso!");
-    }}
-    style={{
-      padding: "0.5rem 1rem",
-      backgroundColor: "#28a745",
-      color: "#fff",
-      border: "none",
-      borderRadius: "4px",
-      cursor: "pointer"
-    }}
-  >
-    ✅ Liberar Resultados Finais
-  </button>
-</div>
+        <h3>🔓 Controle da Última Rodada</h3>
+        <button
+          onClick={async () => {
+            const docRef = doc(db, "controleRodada", "status");
+            await updateDoc(docRef, { liberarFinal: true });
+            alert("✅ Resultados finais liberados com sucesso!");
+          }}
+          style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "#28a745",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer"
+          }}
+        >
+          ✅ Liberar Resultados Finais
+        </button>
+      </div>
 
-<div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
-  <h3>🚫 Controle de Cadastro</h3>
-  <button
-    onClick={async () => {
-      const configRef = doc(db, "configuracoes", "geral");
+      <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
+        <h3>🚫 Controle de Cadastro</h3>
+        <button
+          onClick={async () => {
+            const configRef = doc(db, "configuracoes", "geral");
+            await updateDoc(configRef, { cadastroBloqueado: true });
+            alert("🚫 Cadastro de novos times bloqueado com sucesso!");
+          }}
+          style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "#dc3545",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer"
+          }}
+        >
+          🚫 Bloquear Cadastro de Novos Times
+        </button>
+      </div>
 
-      // Cria ou atualiza o campo cadastroBloqueado
-      await updateDoc(configRef, { cadastroBloqueado: true });
+      <div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
+        <h3>🔄 Resetar Simulador</h3>
+        <button
+          onClick={async () => {
+            const confirmar = window.confirm("Tem certeza que deseja resetar o simulador?");
+            if (!confirmar) return;
 
-      alert("🚫 Cadastro de novos times bloqueado com sucesso!");
-    }}
-    style={{
-      padding: "0.5rem 1rem",
-      backgroundColor: "#dc3545",
-      color: "#fff",
-      border: "none",
-      borderRadius: "4px",
-      cursor: "pointer"
-    }}
-  >
-    🚫 Bloquear Cadastro de Novos Times
-  </button>
-</div>
-<div style={{ marginTop: "2rem", marginBottom: "2rem" }}>
-  <h3>🔄 Resetar Simulador</h3>
-  <button
-    onClick={async () => {
-      const confirmar = window.confirm("Tem certeza que deseja resetar o simulador?");
-      if (!confirmar) return;
+            const configRef = doc(db, "configuracoes", "geral");
+            await updateDoc(configRef, {
+              rodadaAtual: 1,
+              rodadaAtiva: false,
+              cadastroBloqueado: false
+            });
 
-      const configRef = doc(db, "configuracoes", "geral");
+            await limparColecoes();
 
-      // Atualiza os campos para resetar o simulador
-      await updateDoc(configRef, {
-        rodadaAtual: 1,
-        rodadaAtiva: false,
-        cadastroBloqueado: false
-      });
-      setTimes([]);
-setBusca("");
-setFiltro("todos");
+            setTimes([]);
+            setBusca("");
+            setFiltro("todos");
 
-      alert("🔄 Simulador resetado com sucesso!");
-    }}
-    style={{
-      padding: "0.5rem 1rem",
-      backgroundColor: "#ffc107",
-      color: "#000",
-      border: "none",
-      borderRadius: "4px",
-      cursor: "pointer"
-    }}
-  >
-    🔄 Resetar Simulador
-  </button>
-</div>
-
-
+            alert("🔄 Simulador resetado com sucesso!");
+          }}
+          style={{
+            padding: "0.5rem 1rem",
+            backgroundColor: "#ffc107",
+            color: "#000",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer"
+          }}
+        >
+          🔄 Resetar Simulador
+        </button>
+      </div>
 
       <div className="filtros">
         <input
