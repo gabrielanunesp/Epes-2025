@@ -1,389 +1,224 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { db, auth } from '../services/firebase';
-import {
-  collection,
-  addDoc,
-  setDoc,
-  doc,
-  getDoc,
-  getDocs,
-  deleteDoc,
-  onSnapshot,
-  Timestamp,
-} from 'firebase/firestore';
-import DecisionCard from '../components/DecisionCard';
-import CreditBox from '../components/CreditBox';
-import Summary from '../components/Summary';
-import SaveButton from '../components/SaveButton';
-import UpgradeLimitBar from '../components/UpgradeLimitBar';
-import CronometroRodada from '../components/CronometroRodada';
-import Conselheiro from '../components/Conselheiro';
-import { calcularRodada } from '../services/calcularRodadas';
-import { sumCosts } from '../utils/CostUtils';
-import './DecisionPage.css';
+import React, { useEffect, useState } from "react";
+import { db, auth } from "../services/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { calcularRodada } from "../services/calcularRodadas";
+import "./DecisionPage.css";
 
 export default function DecisionPage() {
-  const navigate = useNavigate();
-  const recursoInicial = 100;
+  const [publicoAlvo, setPublicoAlvo] = useState("");
+  const [membros, setMembros] = useState<{ uid: string }[]>([]);
+  const [rodadaAtiva, setRodadaAtiva] = useState(false);
+  const [tempoRestante, setTempoRestante] = useState("");
+  const [mensagemCapitao, setMensagemCapitao] = useState("");
 
-  const [investimento, setInvestimento] = useState<string[]>([]);
-  const [marketing, setMarketing] = useState<string[]>([]);
-  const [producao, setProducao] = useState(0);
-  const [pd, setPd] = useState<string[]>([]);
-  const [totalUsed, setTotalUsed] = useState(0);
-  const [investimentoCost, setInvestimentoCost] = useState(0);
-  const [rodadaAtivaLocal, setRodadaAtivaLocal] = useState(false);
-  const [lucroAnterior, setLucroAnterior] = useState(0);
-  const [isCapitao, setIsCapitao] = useState(false);
-  const [resultadoPreview, setResultadoPreview] = useState<any>(null);
-  const [custoUpgrades, setCustoUpgrades] = useState(0);
-  const [limiteUpgrades, setLimiteUpgrades] = useState(0);
-  const [rodadaFoiSalva, setRodadaFoiSalva] = useState(false);
-  const [precoEscolhido, setPrecoEscolhido] = useState(100);
+  const uid = localStorage.getItem("uid") ?? "";
+  const codigoTurma = localStorage.getItem("codigoTurma") ?? "";
+  const isCapitao = membros.length > 0 && membros[0].uid === uid;
 
-  const marketingOptions = [
-    { label: 'Online', cost: 10 },
-    { label: 'TV', cost: 20 },
-    { label: 'Eventos', cost: 15 },
-  ];
+  // Decisões
+  const [produtoIndex, setProdutoIndex] = useState(0);
+  const [marketingIndex, setMarketingIndex] = useState(0);
+  const [capacidadeIndex, setCapacidadeIndex] = useState(1);
+  const [equipeIndex, setEquipeIndex] = useState(0);
+  const [marcaProtegida, setMarcaProtegida] = useState(false);
+  const [beneficioIndex, setBeneficioIndex] = useState(3);
 
-  const investimentoOptions = [
-    { label: 'Tecnologia', cost: 20 },
-    { label: 'Infraestrutura', cost: 25 },
-    { label: 'Treinamento', cost: 15 },
-    { label: 'Proteção de Marca', cost: 20 },
-  ];
+  const produtoOpcoes = ["Básico", "Intermediário", "Avançado", "Premium"];
+  const marketingOpcoes = ["Local", "Regional", "Nacional", "Nacional + Influenciadores"];
+  const capacidadeOpcoes = ["500 unidades", "1.000 unidades", "2.000 unidades", "3.000 unidades"];
+  const equipeOpcoes = ["Enxuto", "Balanceado", "Reforçado", "Especializado"];
+  const beneficioOpcoes = ["Cupom", "Brinde", "Frete grátis", "Nenhum"];
 
-  const pdOptions = [
-    { label: 'Produto', cost: 10 },
-    { label: 'Processo', cost: 15 },
-  ];
+  const preco = 100;
+  const limiteInvestimento = 500000;
 
-useEffect(() => {
-  const investimentoTotal = sumCosts(investimento, investimentoOptions);
-  const marketingTotal = sumCosts(marketing, marketingOptions);
-  const pdTotal = sumCosts(pd, pdOptions);
-  const producaoTotal = Math.floor(producao / 10);
+  const qualidade = [10, 20, 35, 50][produtoIndex];
+  const marketingBonus = [8, 15, 25, 35][marketingIndex];
+  const capacidade = [500, 1000, 2000, 3000][capacidadeIndex];
+  const equipeBonus = [5, 15, 25, 30][equipeIndex];
+  const beneficioBonus = [10, 15, 20, 0][beneficioIndex];
+  const custoProtecao = marcaProtegida ? 80000 : 0;
 
-  setInvestimentoCost(investimentoTotal);
-  setTotalUsed(investimentoTotal + marketingTotal + pdTotal + producaoTotal);
-}, [investimento, marketing, pd, producao]);
+  const totalUsado =
+    [50000, 100000, 200000, 300000][produtoIndex] +
+    [50000, 100000, 200000, 300000][marketingIndex] +
+    [50000, 100000, 200000, 300000][capacidadeIndex] +
+    [50000, 100000, 200000, 300000][equipeIndex] +
+    [50000, 80000, 100000, 0][beneficioIndex] +
+    custoProtecao;
 
+  const caixaRestante = limiteInvestimento - totalUsado;
+  const passouDoLimite = caixaRestante < 0;
 
-  const reinvestimentoDisponivel = Math.floor(lucroAnterior * 0.2);
-  const caixaAcumulado = Math.floor(lucroAnterior * 0.8);
-  const restante = recursoInicial - totalUsed;
-  const isUpgradeExcedido = custoUpgrades > limiteUpgrades;
-
-  const producaoCost = Math.floor(producao / 10);
-  const marketingCost = sumCosts(marketing, marketingOptions);
-  const pdCost = sumCosts(pd, pdOptions);
+  const formatar = (valor: number) =>
+    new Intl.NumberFormat("pt-BR").format(valor);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, 'configuracoes', 'geral'), (docSnap) => {
-      const dados = docSnap.data();
-      setRodadaAtivaLocal(dados?.rodadaAtiva === true);
-    });
-    return () => unsubscribe();
-  }, []);
+    const carregarDados = async () => {
+      const empresaRef = doc(db, "empresas", codigoTurma);
+      const geralRef = doc(db, "configuracoes", "geral");
 
-  useEffect(() => {
-    const fetchLucroECapitao = async () => {
-      const codigoTurma = localStorage.getItem('codigoTurma');
-      const user = auth.currentUser;
-      if (!codigoTurma || !user) return;
+      const [empresaSnap, geralSnap] = await Promise.all([
+        getDoc(empresaRef),
+        getDoc(geralRef),
+      ]);
 
-      const timeRef = doc(db, 'times', codigoTurma);
-      const timeSnap = await getDoc(timeRef);
-      const timeData = timeSnap.data();
+      const empresaData = empresaSnap.data();
+      const geralData = geralSnap.data();
 
-      setLucroAnterior(timeData?.lucroAnterior ?? 0);
-      setIsCapitao(timeData?.criadoPor === user.uid);
+      if (empresaData?.publicoAlvo) {
+        setPublicoAlvo(empresaData.publicoAlvo);
+      }
+
+      if (empresaData?.membros) {
+        setMembros(empresaData.membros);
+      }
+
+      if (geralData?.rodadaAtiva === true) {
+        setRodadaAtiva(true);
+      } else {
+        setRodadaAtiva(false);
+      }
+
+      if (geralData?.prazo) {
+        const fim = new Date(geralData.prazo.seconds * 1000);
+        const agora = new Date();
+        const diff = Math.max(0, fim.getTime() - agora.getTime());
+        const minutos = Math.floor(diff / 60000);
+        const segundos = Math.floor((diff % 60000) / 1000);
+        setTempoRestante(`${minutos}m ${segundos}s`);
+      }
     };
-    fetchLucroECapitao();
-  }, []);
 
-  useEffect(() => {
-    const houveBacklogAnterior = localStorage.getItem('houveBacklog') === 'true';
+    carregarDados();
+  }, [codigoTurma]);
+  const resultado = calcularRodada({
+    preco,
+    qualidade,
+    marketingBonus,
+    equipeBonus,
+    beneficioBonus,
+    capacidade,
+    publicoAlvo,
+    caixaAcumulado: 0,
+  });
 
-    if (
-      investimento.length === 0 &&
-      marketing.length === 0 &&
-      pd.length === 0 &&
-      producao === 0
-    ) return;
-
-    const preview = calcularRodada({
-      preco: precoEscolhido,
-      produto: investimentoCost,
-      marketing: sumCosts(marketing, marketingOptions),
-      capacidade: Math.floor(producao / 10),
-      equipe: sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Treinamento")),
-      beneficio: sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Infraestrutura")),
-      publicoAlvo: "classe-cd",
-      caixaAcumulado,
-      atraso: false,
-      penalidadeBacklog: houveBacklogAnterior,
-    });
-
-    setResultadoPreview(preview);
-  }, [
-    precoEscolhido,
-    investimentoCost,
-    marketing,
-    producao,
-    investimento,
-    caixaAcumulado,
-    pd
-  ]);
-
-  useEffect(() => {
-    const custoInfra = sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Infraestrutura"));
-    const custoTreinamento = sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Treinamento"));
-    setCustoUpgrades(custoInfra + custoTreinamento);
-
-    const reinvestimento = Math.floor(lucroAnterior * 0.2);
-    const caixa = Math.floor(lucroAnterior * 0.8);
-    setLimiteUpgrades(reinvestimento + caixa);
-  }, [investimento, lucroAnterior]);
-
-  const handleSave = async () => {
-    const configRef = doc(db, 'configuracoes', 'geral');
-    const configSnap = await getDoc(configRef);
-    const configData = configSnap.data();
-
-    if (!configData?.rodadaAtiva) {
-      alert('🚫 A rodada está fechada. Aguarde o responsável abrir.');
+  const salvarDecisao = async () => {
+    if (!isCapitao) {
+      setMensagemCapitao("🔒 Apenas o capitão pode enviar a decisão final.");
       return;
     }
 
-    if (restante < 0 || isUpgradeExcedido) {
-      alert('⚠️ Verifique os pontos alocados. Há excesso ou saldo negativo.');
-      return;
-    }
+    if (!rodadaAtiva || passouDoLimite) return;
 
-    if (
-      investimento.length === 0 &&
-      marketing.length === 0 &&
-      pd.length === 0 &&
-      producao === 0
-    ) {
-      alert("⚠️ Você precisa fazer escolhas antes de salvar a rodada.");
-      return;
-    }
-
-    const user = auth.currentUser;
-    const codigoTurma = localStorage.getItem('codigoTurma');
-    if (!user || !codigoTurma) {
-      alert('Usuário não autenticado ou código da turma ausente.');
-      return;
-    }
-
-    const timeRef = doc(db, 'times', codigoTurma);
-    const timeSnap = await getDoc(timeRef);
-    const timeData = timeSnap.data();
-    if (!timeData || timeData.criadoPor !== user.uid) {
-      alert('🚫 Apenas o capitão pode salvar a rodada.');
-      return;
-    }
-
-    const rodadasSnap = await getDocs(collection(db, 'rodadas'));
-    const rodadasInvalidas = rodadasSnap.docs.filter(doc => {
-      const r = doc.data();
-      return r.timeId === codigoTurma && (r.ea === 0 || isNaN(r.lucro) || isNaN(r.caixaFinal));
-    });
-    for (const docInv of rodadasInvalidas) {
-      await deleteDoc(doc(db, 'rodadas', docInv.id));
-    }
-
-    const resultado = calcularRodada({
-      preco: precoEscolhido,
-      produto: investimentoCost,
-      marketing: sumCosts(marketing, marketingOptions),
-      capacidade: Math.floor(producao / 10),
-      equipe: sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Treinamento")),
-      beneficio: sumCosts(investimento, investimentoOptions.filter(opt => opt.label === "Infraestrutura")),
-      publicoAlvo: timeData.publicoAlvo ?? "classe-cd",
-      caixaAcumulado,
-      atraso: false,
-      eaDosOutrosTimes: [],
-    });
-
-    if (
-      !resultado ||
-      typeof resultado !== "object" ||
-      !Number.isFinite(resultado.ea) ||
-      !Number.isFinite(resultado.lucro) ||
-      !Number.isFinite(resultado.caixaFinal) ||
-      !Number.isFinite(resultado.receita) ||
-      resultado.ea === 0 ||
-      resultado.demanda === 0
-    ) {
-      alert("⚠️ Os dados da rodada estão incompletos ou inválidos. Verifique suas escolhas.");
-      return;
-    }
-
-    const caixaFinalValido = Number.isFinite(resultado.caixaFinal) ? resultado.caixaFinal : 0;
-    const lucroValido = Number.isFinite(resultado.lucro) ? resultado.lucro : 0;
-    const satisfacaoValida = Number.isFinite(resultado.satisfacao) ? resultado.satisfacao : 0;
-
-    await setDoc(doc(db, 'times', codigoTurma), {
-      caixaAcumulado: caixaFinalValido,
-      lucroTotal: lucroValido,
-      satisfacaoMedia: satisfacaoValida,
-      pontuacao: totalUsed,
-      nome: user.displayName || user.email || "Time sem nome",
-    }, { merge: true });
-
-    const resultadoLimpo = Object.fromEntries(
-  Object.entries(resultado).filter(([_, v]) => v !== undefined)
-);
-
-   await addDoc(collection(db, 'rodadas'), {
-  ...resultadoLimpo,
-  timeId: codigoTurma,
-  versao: "2025",
-  atraso: false,
-  status: "✅",
-  timestamp: Timestamp.now(),
-});
-
-
-    const decision = {
-      investimento,
-      marketing,
-      producao,
-      pd,
-      precoEscolhido,
-      totalUsed,
-      investimentoCost,
-      reinvestimentoDisponivel,
-      caixaAcumulado,
-      recursoInicial,
-      email: user.email,
-      uid: user.uid,
+    const dados = {
+      produto: produtoOpcoes[produtoIndex],
+      marketing: marketingOpcoes[marketingIndex],
+      capacidade: capacidade,
+      equipe: equipeOpcoes[equipeIndex],
+      marca: marcaProtegida,
+      beneficio: beneficioOpcoes[beneficioIndex],
+      preco,
+      totalUsado,
+      caixaRestante,
+      publicoAlvo,
+      ...resultado,
+      timestamp: new Date(),
       codigoTurma,
-      timestamp: Timestamp.now(),
+      uid,
     };
 
-    try {
-      await addDoc(collection(db, 'decisoes'), decision);
+    await setDoc(doc(db, "decisoes", `${codigoTurma}/rodada1/${uid}`), dados);
+    await setDoc(doc(db, "rodadas", `${codigoTurma}/rodada1`), {
+      [uid]: dados,
+    });
 
-      await setDoc(doc(db, 'jogadores', user.uid), {
-        nome: user.displayName || user.email || 'Jogador',
-        pontuacao: totalUsed,
-      });
-
-      setRodadaFoiSalva(true);
-      alert('✅ Decisão e rodada calculada com sucesso!');
-    } catch (error) {
-      console.error('Erro ao salvar decisão:', error);
-      alert('Ocorreu um erro ao salvar. Tente novamente.');
-    }
-  };
-
-  const toggleOption = (
-    label: string,
-    list: string[],
-    setList: React.Dispatch<React.SetStateAction<string[]>>
-  ) => {
-    setList(prev =>
-      prev.includes(label)
-        ? prev.filter(item => item !== label)
-        : [...prev, label]
-    );
+    setMensagemCapitao("✅ Decisão salva com sucesso!");
   };
 
   return (
-    <div className="container">
-      <h1>📊 Decisões da Rodada</h1>
+    <div className="decision-container">
+      <h2>📊 Decisões Estratégicas</h2>
 
-      {!rodadaAtivaLocal && (
-        <div className="alert-box">
-          🚫 A rodada está fechada. Aguarde o responsável abrir para salvar suas decisões.
-        </div>
-      )}
-
-      <CronometroRodada modo="jogador" />
-
-      <CreditBox
-        recursoInicial={recursoInicial}
-        totalUsed={totalUsed}
-        restante={restante}
-        isReinvestimentoExcedido={isUpgradeExcedido}
-        reinvestimentoDisponivel={reinvestimentoDisponivel}
-      />
-
-      <UpgradeLimitBar
-        custoUpgrades={custoUpgrades}
-        limiteUpgrades={limiteUpgrades}
-      />
-
-      <div className="cards">
-        <DecisionCard
-          title="💼 Investimentos"
-          options={investimentoOptions}
-          selected={investimento}
-          toggle={label => toggleOption(label, investimento, setInvestimento)}
-        />
-        <DecisionCard
-          title="📢 Marketing"
-          options={marketingOptions}
-          selected={marketing}
-          toggle={label => toggleOption(label, marketing, setMarketing)}
-        />
-        <div className="card">
-          <h2>🏭 Produção</h2>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={producao}
-            onChange={e => setProducao(Number(e.target.value))}
-          />
-          <p>{producao}%</p>
-        </div>
-        <DecisionCard
-          title="🔬 P&D"
-          options={pdOptions}
-          selected={pd}
-          toggle={label => toggleOption(label, pd, setPd)}
-        />
+      <div className="decision-block">
+        <label>🔬 Produto & P&D:</label>
+        <select value={produtoIndex} onChange={(e) => setProdutoIndex(Number(e.target.value))}>
+          {produtoOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+        </select>
       </div>
 
-      <Summary
-        producao={producao}
-        producaoCost={producaoCost}
-        marketing={marketing}
-        marketingCost={marketingCost}
-        investimento={investimento}
-        investimentoCost={investimentoCost}
-        pd={pd}
-        pdCost={pdCost}
-        precoEscolhido={precoEscolhido}
-        restante={restante}
-        reinvestimentoDisponivel={reinvestimentoDisponivel}
-        caixaAcumulado={caixaAcumulado}
-        ea={resultadoPreview?.ea}
-        caixaFinal={resultadoPreview?.caixaFinal}
-        cvu={resultadoPreview?.cvu}
-        backlog={resultadoPreview?.backlog}
-        rodadaAtiva={rodadaAtivaLocal}
-        isCapitao={isCapitao}
-        rodadaFoiSalva={rodadaFoiSalva}
-      />
+      <div className="decision-block">
+        <label>📢 Marketing & Branding:</label>
+        <select value={marketingIndex} onChange={(e) => setMarketingIndex(Number(e.target.value))}>
+          {marketingOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+        </select>
+      </div>
 
-      <SaveButton
-        onSave={handleSave}
-        disabled={!rodadaAtivaLocal || restante < 0 || isUpgradeExcedido}
-      />
+      <div className="decision-block">
+        <label>🏭 Capacidade Operacional:</label>
+        <select value={capacidadeIndex} onChange={(e) => setCapacidadeIndex(Number(e.target.value))}>
+          {capacidadeOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+        </select>
+      </div>
 
-      <Conselheiro
-        restante={restante}
-        isReinvestimentoExcedido={isUpgradeExcedido}
-        rodadaAtiva={rodadaAtivaLocal}
-      />
+      <div className="decision-block">
+        <label>👥 Equipe & Treinamento:</label>
+        <select value={equipeIndex} onChange={(e) => setEquipeIndex(Number(e.target.value))}>
+          {equipeOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+        </select>
+      </div>
+
+      <div className="decision-block">
+        <label>🛡️ Proteção de Marca:</label>
+        <select value={marcaProtegida ? "sim" : "nao"} onChange={(e) => setMarcaProtegida(e.target.value === "sim")}>
+          <option value="sim">Sim</option>
+          <option value="nao">Não</option>
+        </select>
+      </div>
+
+      <div className="decision-block">
+        <label>🎁 Benefício de Lançamento:</label>
+        <select value={beneficioIndex} onChange={(e) => setBeneficioIndex(Number(e.target.value))}>
+          {beneficioOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+        </select>
+      </div>
+
+      <p><strong>💸 Total usado:</strong> R$ {formatar(totalUsado)}</p>
+      <p><strong>🧮 Caixa restante:</strong> R$ {formatar(caixaRestante)}</p>
+
+      <h3 style={{ marginTop: "2rem" }}>📋 Resumo das Decisões</h3>
+      <div className="indicators">
+        <p>📈 EA: {resultado.ea}</p>
+        <p>📊 Share: {resultado.share}%</p>
+        <p>🛍️ Demanda: {formatar(resultado.demanda)}</p>
+        <p>💰 Receita: R$ {formatar(resultado.receita)}</p>
+        <p>📉 Lucro: R$ {formatar(resultado.lucro)}</p>
+        <p>🏦 Caixa Final: R$ {formatar(resultado.caixaFinal)}</p>
+      </div>
+
+      {!rodadaAtiva && (
+        <div className="alert red">⛔ A rodada está fechada. Aguarde o responsável iniciar a próxima rodada.</div>
+      )}
+
+      {rodadaAtiva && (
+        <div className="alert green">✅ Rodada ativa! Tempo restante: ⏱️ {tempoRestante}</div>
+      )}
+
+      {passouDoLimite && (
+        <div className="alert red">❌ Você ultrapassou o limite de investimento. Ajuste suas decisões para continuar.</div>
+      )}
+
+      {mensagemCapitao && (
+        <div className="alert gray">{mensagemCapitao}</div>
+      )}
+
+      <button
+        className="save-button"
+        disabled={!rodadaAtiva || passouDoLimite}
+        onClick={salvarDecisao}
+      >
+        💾 Salvar Decisão
+      </button>
     </div>
   );
 }

@@ -26,7 +26,15 @@ const Relatorio: React.FC = () => {
   useEffect(() => {
     const fetchRodadas = async () => {
       try {
-        const snapshot = await getDocs(collection(db, "rodadas"));
+        const codigoTurma = localStorage.getItem("codigoTurma");
+        if (!codigoTurma) {
+          setErro("❌ Código da turma não encontrado.");
+          setCarregando(false);
+          return;
+        }
+
+        const rodadaRef = collection(db, "rodadas", codigoTurma, "rodada1");
+        const snapshot = await getDocs(rodadaRef);
         const dados = snapshot.docs
           .map(doc => doc.data() as Rodada)
           .filter(r => r.status === "✅");

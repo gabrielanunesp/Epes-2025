@@ -14,9 +14,9 @@ export interface ResultadoRodada {
 }
 
 export function calcularCVU(qualidade: number, eficiencia: number): number {
-  const base = 50;
-  const alpha = 2;
-  const beta = 1.5;
+  const base = 20;
+  const alpha = 0.2;
+  const beta = 0.1;
 
   const cvu = base + alpha * qualidade - beta * eficiencia;
   return Math.max(0, parseFloat(cvu.toFixed(2)));
@@ -24,113 +24,152 @@ export function calcularCVU(qualidade: number, eficiencia: number): number {
 
 export function calcularRodada(d: {
   preco: number;
-  produto: number;
-  marketing: number;
+  qualidade: number;
+  marketingBonus: number;
+  equipeBonus: number;
+  beneficioBonus: number;
   capacidade: number;
-  equipe: number;
-  beneficio: number;
-  publicoAlvo?: string;
+  publicoAlvo: string;
   caixaAcumulado: number;
-  atraso?: boolean;
-  penalidadeBacklog?: boolean;
+  precoMedioMercado?: number;
+  marketSize?: number;
   eaDosOutrosTimes?: number[];
 }): ResultadoRodada {
   const {
     preco,
-    produto,
-    marketing,
+    qualidade,
+    marketingBonus,
+    equipeBonus,
+    beneficioBonus,
     capacidade,
-    equipe,
-    beneficio,
-    publicoAlvo = "classe-cd",
+    publicoAlvo,
     caixaAcumulado,
-    atraso = false,
-    penalidadeBacklog = false,
+    precoMedioMercado = 100,
+    marketSize = 10000,
     eaDosOutrosTimes = [],
   } = d;
 
-  // ✅ Proteção contra dados inválidos
-  if (
-    isNaN(preco) ||
-    isNaN(produto) ||
-    isNaN(marketing) ||
-    isNaN(capacidade) ||
-    isNaN(equipe) ||
-    isNaN(beneficio) ||
-    isNaN(caixaAcumulado)
-  ) {
-    return {
-      ea: 0,
-      demanda: 0,
-      receita: 0,
-      custo: 0,
-      lucro: 0,
-      reinvestimento: 0,
-      caixaFinal: caixaAcumulado,
-      cvu: 0,
-      backlog: false,
-      satisfacao: 0,
-      evento: undefined,
-      share: 0,
-    };
+  // 🔹 Multiplicadores por público-alvo
+  const qualidadeMultiplicador: Record<string, number> = {
+    "Jovens (15–24 anos)": 0.8,
+    "Adultos (25–40 anos)": 1.0,
+    "Sêniores (40+)": 1.2,
+    "Classe A/B": 1.25,
+    "Classe C/D": 0.8,
+  };
+
+  const marketingMultiplicador: Record<string, number> = {
+    "Jovens (15–24 anos)": 1.3,
+    "Adultos (25–40 anos)": 1.0,
+    "Sêniores (40+)": 1.2,
+    "Classe A/B": 1.1,
+    "Classe C/D": 1.15,
+  };
+
+  const equipeMultiplicador: Record<string, number> = {
+    "Jovens (15–24 anos)": 0.9,
+    "Adultos (25–40 anos)": 1.0,
+    "Sêniores (40+)": 1.3,
+    "Classe A/B": 1.1,
+    "Classe C/D": 0.9,
+  };
+
+  const elasticidadePreco: Record<string, number> = {
+    "Jovens (15–24 anos)": 1.2,
+    "Adultos (25–40 anos)": 1.0,
+    "Sêniores (40+)": 0.8,
+    "Classe A/B": 0.9,
+    "Classe C/D": 1.5,
+  };
+
+  const beneficioBonusExtra: Record<string, number> = {
+    "Cupom|Classe C/D": 5,
+    "Brinde|Jovens (15–24 anos)": 5,
+    "Frete grátis|Adultos (25–40 anos)": 5,
+    "Frete grátis|Sêniores (40+)": 5,
+  };
+
+  const modificadorEA = 1.0;
+  const epsilon = elasticidadePreco[publicoAlvo] ?? 1.0;
+
+  // 🔹 Proteções
+  const precoValido = preco > 0 ? preco : 100;
+  const qualidadeValida = qualidade ?? 0;
+  const marketingValido = marketingBonus ?? 0;
+  const equipeValida = equipeBonus ?? 0;
+  const beneficioTipo = d.beneficioBonus > 0 ? (
+    d.beneficioBonus === 10 ? "Cupom" :
+    d.beneficioBonus === 15 ? "Brinde" :
+    d.beneficioBonus === 20 ? "Frete grátis" : "Nenhum"
+  ) : "Nenhum";
+
+  const chaveBeneficio = `${beneficioTipo}|${publicoAlvo}`;
+  const bonusExtra = beneficioBonusExtra[chaveBeneficio] ?? 0;
+  const beneficioValido = d.beneficioBonus + bonusExtra;
+
+  // 🔹 EA base com modificadores
+  const eaBase =
+    (100 - precoValido) +
+    qualidadeValida * qualidadeMultiplicador[publicoAlvo] +
+    marketingValido * marketingMultiplicador[publicoAlvo] +
+    equipeValida * equipeMultiplicador[publicoAlvo] +
+    beneficioValido;
+
+  let eaAjustado = eaBase * modificadorEA;
+
+  // 🔹 Share via softmax
+  const todosEA = [...eaDosOutrosTimes, eaAjustado];
+  const somaExp = todosEA.reduce((acc, ea) => acc + Math.exp(ea || 0), 0);
+  const share = somaExp > 0 ? Math.exp(eaAjustado) / somaExp : 0;
+
+  // 🔹 Demanda bruta com elasticidade
+  const fatorPreco = Math.pow(precoMedioMercado / precoValido, epsilon);
+  const demandaBruta = marketSize * share * fatorPreco;
+
+  // 🔹 Demanda atendida
+  const vendas = Math.min(demandaBruta, capacidade);
+  const houveBacklog = demandaBruta > capacidade;
+
+  // 🔹 Penalidade de backlog
+  if (houveBacklog) {
+    if (["Jovens (15–24 anos)", "Classe C/D"].includes(publicoAlvo)) {
+      eaAjustado -= 15;
+    } else if (["Sêniores (40+)", "Classe A/B"].includes(publicoAlvo)) {
+      eaAjustado -= 5;
+    }
   }
 
-  // ✅ Cálculo do EA base
-  let ea = produto * 0.2 + equipe * 0.3 + beneficio * 0.5;
+  // 🔹 Receita
+  const receita = vendas * precoValido;
 
-  if (penalidadeBacklog) {
-    if (publicoAlvo === "jovens" || publicoAlvo === "classe-cd") ea -= 15;
-    if (publicoAlvo === "seniores" || publicoAlvo === "classe-ab") ea -= 5;
-  }
+  // 🔹 CVU e custo variável
+  const eficiencia = capacidade / 100;
+  const cvu = calcularCVU(qualidadeValida, eficiencia);
+  const custoVariavel = vendas * cvu;
 
-  if (publicoAlvo === "jovens") ea *= 1.1;
-  if (publicoAlvo === "classe-cd") ea *= 1.05;
-  if (publicoAlvo === "seniores") ea *= 0.95;
+  // 🔹 Custos fixos simulados
+  const custoMarketing = marketingValido * 1000;
+  const custoEquipe = equipeValida * 1000;
+  const custoBeneficio = beneficioValido * 1000;
 
-  // ✅ Cálculo de participação de mercado
-  const todosEAs = [...eaDosOutrosTimes, ea];
-  const expEAs = todosEAs.map(v => Math.exp(v));
-  const somaExp = expEAs.reduce((acc, val) => acc + val, 0);
-  const share = Math.exp(ea) / somaExp;
+  const custoTotal = custoVariavel + custoMarketing + custoEquipe + custoBeneficio;
 
-  const demandaTotal = 1000;
-  const demanda = demandaTotal * share;
-
-  const qualidade = produto / 10;
-  const eficiencia = capacidade / 10;
-
-  const cvu = calcularCVU(qualidade, eficiencia);
-  const custoVariavel = demanda * cvu;
-
-  const receita = demanda * preco;
-
-  const custoFixo =
-    capacidade * 0.3 +
-    equipe * 0.2 +
-    beneficio * 0.2 +
-    marketing * 0.3;
-
-  const custo = custoVariavel + custoFixo;
-
-  let lucro = receita - custo;
-  if (atraso) lucro *= 0.7;
-
-  const reinvestimento = lucro * 0.2;
-  const caixaFinal = caixaAcumulado + lucro - reinvestimento;
-
-  const houveBacklog = demanda > capacidade;
+  // 🔹 Lucro e split
+  const lucroBruto = receita - custoTotal;
+  const reinvestimento = Math.max(0, lucroBruto) * 0.2;
+  const caixaFinal = caixaAcumulado + Math.max(0, lucroBruto) * 0.8;
 
   return {
-    ea: Math.round(ea),
-    demanda: Math.round(demanda),
+    ea: parseFloat(eaAjustado.toFixed(2)),
+    demanda: Math.round(demandaBruta),
     receita: parseFloat(receita.toFixed(2)),
-    custo: parseFloat(custo.toFixed(2)),
-    lucro: parseFloat(lucro.toFixed(2)),
+    custo: parseFloat(custoTotal.toFixed(2)),
+    lucro: parseFloat(lucroBruto.toFixed(2)),
     reinvestimento: parseFloat(reinvestimento.toFixed(2)),
     caixaFinal: parseFloat(caixaFinal.toFixed(2)),
     cvu: parseFloat(cvu.toFixed(2)),
     backlog: houveBacklog,
-    satisfacao: Math.min(100, ea / 100),
+    satisfacao: Math.min(100, eaAjustado / 2),
     evento: undefined,
     share: parseFloat((share * 100).toFixed(2)),
   };

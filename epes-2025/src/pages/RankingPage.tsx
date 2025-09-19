@@ -4,6 +4,7 @@ import {
   getDocs,
   updateDoc,
   doc,
+  getDoc,
   onSnapshot,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
@@ -51,11 +52,17 @@ const RankingPage: React.FC = () => {
   }, [liberarFinal, rodadaAtual]);
 
   const atualizarRanking = async () => {
+    const codigoTurma = localStorage.getItem("codigoTurma");
+    if (!codigoTurma) return;
+
     const timesSnap = await getDocs(collection(db, "times"));
     const times = timesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Time[];
 
-    const rodadasSnap = await getDocs(collection(db, "rodadas"));
-    const todasRodadas = rodadasSnap.docs.map(doc => doc.data() as Rodada);
+    const rodadaRef = doc(db, "rodadas", codigoTurma);
+    const rodadaSnap = await getDoc(rodadaRef);
+    const todasRodadas = rodadaSnap.exists()
+      ? Object.values(rodadaSnap.data()?.rodada1 || {}) as Rodada[]
+      : [];
 
     const timesAtualizados: Time[] = [];
 

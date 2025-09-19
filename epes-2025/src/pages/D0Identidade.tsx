@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { auth, db } from "../services/firebase";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 export default function D0Identidade() {
@@ -27,9 +27,9 @@ export default function D0Identidade() {
 
     try {
       await setDoc(doc(db, "empresas", codigoTurma), {
-        nomeEmpresa,
+        nome: nomeEmpresa,
         publicoAlvo,
-        slogan,
+        missao: slogan,
         cor,
         identidadeDefinida: true,
         criadoPor: user.uid,
@@ -54,18 +54,23 @@ export default function D0Identidade() {
         value={nomeEmpresa}
         onChange={(e) => setNomeEmpresa(e.target.value)}
       />
+
       <select value={publicoAlvo} onChange={(e) => setPublicoAlvo(e.target.value)}>
         <option value="">🎯 Selecione o público-alvo</option>
-        <option value="jovens">👶 Jovens</option>
-        <option value="classe-cd">🏘️ Classe C/D</option>
-        <option value="seniores">👴 Sêniores</option>
+        <option value="Jovens (15–24 anos)">👶 Jovens (15–24 anos)</option>
+        <option value="Adultos (25–40 anos)">🧑 Adultos (25–40 anos)</option>
+        <option value="Sêniores (40+)">👴 Sêniores (40+)</option>
+        <option value="Classe A/B">🏙️ Classe A/B</option>
+        <option value="Classe C/D">🏘️ Classe C/D</option>
       </select>
+
       <input
         type="text"
         placeholder="💬 Missão ou slogan"
         value={slogan}
         onChange={(e) => setSlogan(e.target.value)}
       />
+
       <label>🎨 Cor da marca:</label>
       <input type="color" value={cor} onChange={(e) => setCor(e.target.value)} />
 

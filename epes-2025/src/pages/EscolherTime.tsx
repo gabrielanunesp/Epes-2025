@@ -61,6 +61,11 @@ if (!configSnap.exists()) {
         membros: [{ uid, nome, email, status: "aprovado" }],
       });
 
+      localStorage.setItem("idDoTime", codigo); // ✅ salva o ID do time
+localStorage.setItem("codigoTurma", codigo); // ✅ se ainda não estiver sendo salvo
+localStorage.setItem("nomeDoTime", nomeTime); // opcional, se quiser exibir o nome depois
+
+
       await setDoc(doc(db, "users", uid), {
         nome,
         email,
