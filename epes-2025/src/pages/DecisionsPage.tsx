@@ -10,12 +10,32 @@ export default function DecisionPage() {
   const [rodadaAtiva, setRodadaAtiva] = useState(false);
   const [tempoRestante, setTempoRestante] = useState("");
   const [mensagemCapitao, setMensagemCapitao] = useState("");
+  const [uid, setUid] = useState("");
+  const [isCapitao, setIsCapitao] = useState(false);
 
-  const uid = localStorage.getItem("uid") ?? "";
   const codigoTurma = localStorage.getItem("codigoTurma") ?? "";
-  const isCapitao = membros.length > 0 && membros[0].uid === uid;
 
-  // Decisões
+useEffect(() => {
+  const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    if (user?.uid) {
+      setUid(user.uid);
+
+      if (!codigoTurma) return;
+
+
+      const timeRef = doc(db, "times", codigoTurma);
+      const timeSnap = await getDoc(timeRef);
+      const timeData = timeSnap.data();
+
+      if (timeData?.criadoPor === user.uid) {
+        setIsCapitao(true);
+      }
+    }
+  });
+
+  return () => unsubscribe();
+}, []);
+
   const [produtoIndex, setProdutoIndex] = useState(0);
   const [marketingIndex, setMarketingIndex] = useState(0);
   const [capacidadeIndex, setCapacidadeIndex] = useState(1);
@@ -74,24 +94,32 @@ export default function DecisionPage() {
         setMembros(empresaData.membros);
       }
 
-      if (geralData?.rodadaAtiva === true) {
-        setRodadaAtiva(true);
-      } else {
-        setRodadaAtiva(false);
-      }
-
-      if (geralData?.prazo) {
-        const fim = new Date(geralData.prazo.seconds * 1000);
-        const agora = new Date();
-        const diff = Math.max(0, fim.getTime() - agora.getTime());
-        const minutos = Math.floor(diff / 60000);
-        const segundos = Math.floor((diff % 60000) / 1000);
-        setTempoRestante(`${minutos}m ${segundos}s`);
-      }
+      setRodadaAtiva(geralData?.rodadaAtiva === true);
     };
 
     carregarDados();
   }, [codigoTurma]);
+
+  useEffect(() => {
+    if (!rodadaAtiva) return;
+
+    const atualizarTempo = () => {
+      const agora = new Date();
+      const fim = new Date();
+      fim.setHours(23, 59, 0, 0);
+
+      const diff = Math.max(0, fim.getTime() - agora.getTime());
+      const horas = Math.floor(diff / 3600000);
+      const minutos = Math.floor((diff % 3600000) / 60000);
+      setTempoRestante(`${horas}h ${minutos}m`);
+    };
+
+    atualizarTempo(); // chama imediatamente
+
+    const interval = setInterval(atualizarTempo, 60000);
+    return () => clearInterval(interval);
+  }, [rodadaAtiva]);
+
   const resultado = calcularRodada({
     preco,
     qualidade,
@@ -104,6 +132,8 @@ export default function DecisionPage() {
   });
 
   const salvarDecisao = async () => {
+    const timeId = localStorage.getItem("idDoTime");
+
     if (!isCapitao) {
       setMensagemCapitao("🔒 Apenas o capitão pode enviar a decisão final.");
       return;
@@ -111,10 +141,15 @@ export default function DecisionPage() {
 
     if (!rodadaAtiva || passouDoLimite) return;
 
+    if (!uid || !codigoTurma || !timeId || uid.trim() === "" || timeId.trim() === "") {
+      setMensagemCapitao("⚠️ Informações incompletas. Verifique login e se você escolheu um time.");
+      return;
+    }
+
     const dados = {
       produto: produtoOpcoes[produtoIndex],
       marketing: marketingOpcoes[marketingIndex],
-      capacidade: capacidade,
+      capacidade,
       equipe: equipeOpcoes[equipeIndex],
       marca: marcaProtegida,
       beneficio: beneficioOpcoes[beneficioIndex],
@@ -122,20 +157,43 @@ export default function DecisionPage() {
       totalUsado,
       caixaRestante,
       publicoAlvo,
-      ...resultado,
+      ea: resultado.ea ?? 0,
+      share: resultado.share ?? 0,
+      demanda: resultado.demanda ?? 0,
+      receita: resultado.receita ?? 0,
+      lucro: resultado.lucro ?? 0,
+      caixaFinal: resultado.caixaFinal ?? 0,
       timestamp: new Date(),
       codigoTurma,
       uid,
+      timeId,
     };
 
-    await setDoc(doc(db, "decisoes", `${codigoTurma}/rodada1/${uid}`), dados);
-    await setDoc(doc(db, "rodadas", `${codigoTurma}/rodada1`), {
-      [uid]: dados,
-    });
+    await setDoc(doc(db, "decisoes", `${codigoTurma}_rodada1_${uid}`), dados);
+    await setDoc(doc(db, "rodadas", codigoTurma, "rodada1", uid), {
+  timeId: timeId,
+  ea: resultado.ea,
+  demanda: resultado.demanda,
+  receita: resultado.receita,
+  custo: resultado.custo,
+  lucro: resultado.lucro,
+  reinvestimento: resultado.reinvestimento,
+  caixaFinal: resultado.caixaFinal,
+  satisfacao: resultado.satisfacao,
+  atraso: false,
+  status: "✅",
+  timestamp: new Date(),
+});
+
+await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada1_${uid}`), {
+  ...dados,
+  status: "✅"
+});
+
+
 
     setMensagemCapitao("✅ Decisão salva com sucesso!");
   };
-
   return (
     <div className="decision-container">
       <h2>📊 Decisões Estratégicas</h2>
@@ -143,28 +201,36 @@ export default function DecisionPage() {
       <div className="decision-block">
         <label>🔬 Produto & P&D:</label>
         <select value={produtoIndex} onChange={(e) => setProdutoIndex(Number(e.target.value))}>
-          {produtoOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+          {produtoOpcoes.map((op, i) => (
+            <option key={i} value={i}>{op}</option>
+          ))}
         </select>
       </div>
 
       <div className="decision-block">
         <label>📢 Marketing & Branding:</label>
         <select value={marketingIndex} onChange={(e) => setMarketingIndex(Number(e.target.value))}>
-          {marketingOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+          {marketingOpcoes.map((op, i) => (
+            <option key={i} value={i}>{op}</option>
+          ))}
         </select>
       </div>
 
       <div className="decision-block">
         <label>🏭 Capacidade Operacional:</label>
         <select value={capacidadeIndex} onChange={(e) => setCapacidadeIndex(Number(e.target.value))}>
-          {capacidadeOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+          {capacidadeOpcoes.map((op, i) => (
+            <option key={i} value={i}>{op}</option>
+          ))}
         </select>
       </div>
 
       <div className="decision-block">
         <label>👥 Equipe & Treinamento:</label>
         <select value={equipeIndex} onChange={(e) => setEquipeIndex(Number(e.target.value))}>
-          {equipeOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+          {equipeOpcoes.map((op, i) => (
+            <option key={i} value={i}>{op}</option>
+          ))}
         </select>
       </div>
 
@@ -179,7 +245,9 @@ export default function DecisionPage() {
       <div className="decision-block">
         <label>🎁 Benefício de Lançamento:</label>
         <select value={beneficioIndex} onChange={(e) => setBeneficioIndex(Number(e.target.value))}>
-          {beneficioOpcoes.map((op, i) => <option key={i} value={i}>{op}</option>)}
+          {beneficioOpcoes.map((op, i) => (
+            <option key={i} value={i}>{op}</option>
+          ))}
         </select>
       </div>
 

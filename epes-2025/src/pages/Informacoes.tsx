@@ -1,7 +1,78 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { db } from "../services/firebase";
+import { collection, getDocs } from "firebase/firestore";
 import "./Informacoes.css";
 
+type Rodada = {
+  timeId: string;
+  ea?: number;
+  demanda?: number;
+  receita?: number;
+  custo?: number;
+  lucro?: number;
+  reinvestimento?: number;
+  caixaFinal?: number;
+  satisfacao?: number;
+  atraso?: boolean;
+  status?: string;
+  timestamp?: any;
+};
+
 export default function Informacoes() {
+  const [rodadas, setRodadas] = useState<Rodada[]>([]);
+  const [mapaDeNomes, setMapaDeNomes] = useState<Record<string, string>>({});
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    const fetchRodadas = async () => {
+      try {
+        const codigoTurma = localStorage.getItem("codigoTurma");
+        if (!codigoTurma) {
+          setErro("❌ Código da turma não encontrado.");
+          setCarregando(false);
+          return;
+        }
+
+        // 🔍 Buscar rodadas no formato novo
+        const novaRef = collection(db, "rodadas", codigoTurma, "rodada1");
+        const novaSnap = await getDocs(novaRef);
+        const novasRodadas = novaSnap.docs
+          .map(doc => doc.data() as Rodada)
+          .filter(r => r.status === "✅");
+
+        // 🔍 Buscar rodadas no formato antigo
+        const antigaRef = collection(db, "rodadas");
+        const antigaSnap = await getDocs(antigaRef);
+        const antigasRodadas = antigaSnap.docs
+          .filter(doc => doc.id.startsWith(`${codigoTurma}_rodada1_`))
+          .map(doc => doc.data() as Rodada)
+          .filter(r => r.status === "✅");
+
+        // 🔗 Combinar os dois
+        const todasRodadas = [...novasRodadas, ...antigasRodadas];
+        setRodadas(todasRodadas);
+
+        // 🧠 Mapa de nomes dos times
+        const timesSnap = await getDocs(collection(db, "times"));
+        const nomes: Record<string, string> = {};
+        timesSnap.docs.forEach(doc => {
+          const data = doc.data();
+          nomes[doc.id] = data.nome || doc.id;
+        });
+
+        setMapaDeNomes(nomes);
+      } catch (error) {
+        console.error("Erro ao buscar rodadas:", error);
+        setErro("❌ Não foi possível carregar os dados das rodadas.");
+      } finally {
+        setCarregando(false);
+      }
+    };
+
+    fetchRodadas();
+  }, []);
+
   return (
     <div className="page-container">
       <h2>🎮 Sobre o Jogo</h2>
@@ -35,6 +106,65 @@ export default function Informacoes() {
       <p>Os <strong>100 pontos</strong> são sua ferramenta de estratégia. Cada escolha molda o desempenho do seu produto. O jogo recompensa quem pensa com equilíbrio, visão e adaptação.</p>
 
       <p className="note">Use essas informações a seu favor para tomar decisões mais inteligentes e alcançar os melhores resultados.</p>
+
+      <h2>📊 Relatório Global de Rodadas</h2>
+
+      {erro && <p style={{ padding: "2rem", color: "red" }}>{erro}</p>}
+      {carregando && <p style={{ padding: "2rem" }}>🔄 Carregando relatório global...</p>}
+      {!carregando && rodadas.length === 0 && (
+        <p style={{ padding: "2rem" }}>📭 Nenhuma rodada válida encontrada.</p>
+      )}
+
+      {!carregando && rodadas.length > 0 && (
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "40px" }}>
+          <thead>
+            <tr style={{ backgroundColor: "#eee" }}>
+              <th>Rodada</th>
+              <th>Time</th>
+              <th>EA</th>
+              <th>Demanda</th>
+              <th>Receita</th>
+              <th>Custo</th>
+              <th>Lucro</th>
+              <th>Reinvestimento</th>
+              <th>Caixa Final</th>
+              <th>Satisfação</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rodadas.map((r, index) => (
+              <tr
+                key={index}
+                style={{
+                  backgroundColor:
+                    r.caixaFinal !== undefined && r.caixaFinal < 0
+                      ? "#ffe6e6"
+                      : r.atraso
+                      ? "#fff8dc"
+                      : "#fff",
+                  textAlign: "center",
+                }}
+              >
+                <td>{index + 1}</td>
+                <td>{mapaDeNomes[r.timeId] || r.timeId}</td>
+                <td>{r.ea ?? "—"}</td>
+                <td>{r.demanda ?? "—"}</td>
+                <td>{r.receita !== undefined ? `R$ ${r.receita.toFixed(2)}` : "—"}</td>
+                <td>{r.custo !== undefined ? `R$ ${r.custo.toFixed(2)}` : "—"}</td>
+                <td>
+                  {r.lucro !== undefined ? `R$ ${r.lucro.toFixed(2)}` : "—"}
+                  {r.atraso && " ⚠️"}
+                </td>
+                <td>{r.reinvestimento !== undefined ? `R$ ${r.reinvestimento.toFixed(2)}` : "—"}</td>
+                <td>{r.caixaFinal !== undefined ? `R$ ${r.caixaFinal.toFixed(2)}` : "—"}</td>
+                <td>{r.satisfacao !== undefined ? `${r.satisfacao.toFixed(1)}%` : "—"}</td>
+                <td>{r.atraso ? "⚠️ Atraso" : "✅"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

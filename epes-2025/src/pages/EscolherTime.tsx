@@ -28,29 +28,29 @@ export default function EscolherTime() {
   const navigate = useNavigate();
 
   const camposPreenchidos = (...valores: string[]) => {
-  return valores.every((v) => v.trim() !== "");
-};
-
+    return valores.every((v) => v.trim() !== "");
+  };
 
   const handleCriar = async () => {
     if (!camposPreenchidos(nome, email, senha, nomeTime, codigo)) {
-  setMensagem("⚠️ Preencha todos os campos antes de criar o time.");
-  return;
-}
+      setMensagem("⚠️ Preencha todos os campos antes de criar o time.");
+      return;
+    }
 
     try {
       const configRef = doc(db, "configuracoes", "geral");
-    const configSnap = await getDoc(configRef);
+      const configSnap = await getDoc(configRef);
 
-if (!configSnap.exists()) {
-  setErroCarregamento(true);
-  return;
-}
+      if (!configSnap.exists()) {
+        setErroCarregamento(true);
+        return;
+      }
 
-    if (configSnap.exists() && configSnap.data()?.cadastroBloqueado) {
-      setMensagem("🚫 Cadastro de novos times está bloqueado após a primeira rodada.");
-      return;
-    }
+      if (configSnap.data()?.cadastroBloqueado) {
+        setMensagem("🚫 Cadastro de novos times está bloqueado após a primeira rodada.");
+        return;
+      }
+
       const userCred = await createUserWithEmailAndPassword(auth, email, senha);
       const uid = userCred.user.uid;
 
@@ -61,10 +61,10 @@ if (!configSnap.exists()) {
         membros: [{ uid, nome, email, status: "aprovado" }],
       });
 
-      localStorage.setItem("idDoTime", codigo); // ✅ salva o ID do time
-localStorage.setItem("codigoTurma", codigo); // ✅ se ainda não estiver sendo salvo
-localStorage.setItem("nomeDoTime", nomeTime); // opcional, se quiser exibir o nome depois
-
+      localStorage.setItem("idDoTime", codigo);
+      localStorage.setItem("codigoTurma", codigo);
+      localStorage.setItem("nomeDoTime", nomeTime);
+      localStorage.setItem("papel", "capitao");
 
       await setDoc(doc(db, "users", uid), {
         nome,
@@ -83,25 +83,24 @@ localStorage.setItem("nomeDoTime", nomeTime); // opcional, se quiser exibir o no
     }
   };
 
-
   const handleIngressar = async () => {
     try {
       const configRef = doc(db, "configuracoes", "geral");
-const configSnap = await getDoc(configRef);
+      const configSnap = await getDoc(configRef);
 
-if (!configSnap.exists()) {
-  setErroCarregamento(true);
-  return;
-}
+      if (!configSnap.exists()) {
+        setErroCarregamento(true);
+        return;
+      }
 
-
-if (configSnap.exists() && configSnap.data()?.cadastroBloqueado) {
-  setMensagem("🚫 Cadastro de novos times está bloqueado após a primeira rodada.");
-  return;
-}
+      if (configSnap.data()?.cadastroBloqueado) {
+        setMensagem("🚫 Cadastro de novos times está bloqueado após a primeira rodada.");
+        return;
+      }
 
       const userCred = await createUserWithEmailAndPassword(auth, email, senha);
       const uid = userCred.user.uid;
+      localStorage.setItem("uid", uid);
 
       const timeRef = doc(db, "times", codigo);
       const snapshot = await getDoc(timeRef);
@@ -124,12 +123,7 @@ if (configSnap.exists() && configSnap.data()?.cadastroBloqueado) {
 
       await setDoc(timeRef, {
         ...dados,
-        membros: [...membros, {
-          uid,
-          nome,
-          email,
-          status: "pending",
-        }],
+        membros: [...membros, { uid, nome, email, status: "pending" }],
       });
 
       await setDoc(doc(db, "users", uid), {
@@ -159,6 +153,11 @@ if (configSnap.exists() && configSnap.data()?.cadastroBloqueado) {
       const dados = snapshot.data();
 
       if (dados?.papel === "responsavel") {
+        localStorage.setItem("papel", "responsavel");
+        localStorage.setItem("uid", uid);
+        localStorage.setItem("nome", dados.nome ?? nome);
+        localStorage.setItem("email", dados.email ?? email);
+
         await setDoc(doc(db, "users", uid), {
           nome,
           email,
@@ -175,21 +174,21 @@ if (configSnap.exists() && configSnap.data()?.cadastroBloqueado) {
   };
 
   const handleSair = async () => {
-    await signOut(auth);
-    navigate("/login");
-  };
+  await signOut(auth);
+  localStorage.clear(); // 🔥 limpa todos os dados da sessão anterior
+  navigate("/login");   // ✅ redireciona para a tela de login
+};
 
   return (
     <div className="container-escolher-time">
       <button className="btn-ajuda" onClick={() => setShowAjuda(true)}>❓ Ajuda</button>
       {showAjuda && <AjudaModal onClose={() => setShowAjuda(false)} />}
 
-        {erroCarregamento && (
-  <div className="erro-carregamento">
-    ⚠️ Não foi possível carregar os dados iniciais. Verifique sua conexão ou tente novamente mais tarde.
-  </div>
-)}
-
+      {erroCarregamento && (
+        <div className="erro-carregamento">
+          ⚠️ Não foi possível carregar os dados iniciais. Verifique sua conexão ou tente novamente mais tarde.
+        </div>
+      )}
 
       <div className="card">
         <h2>👥 Criar ou Ingressar em um Time</h2>

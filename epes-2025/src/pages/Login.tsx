@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../services/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../services/firebase";
 import Button from "../components/Button";
 import Input from "../components/Input";
-import HelpModal from "../components/HelpModal"; // novo componente
+import HelpModal from "../components/HelpModal";
 import './Login.css';
 
 export default function Login() {
@@ -13,19 +14,48 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [classCode, setClassCode] = useState("");
   const [error, setError] = useState("");
-  const [showModal, setShowModal] = useState(false); // controla o modal
+  const [showModal, setShowModal] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log("Usuário logado:", userCredential.user);
+      const uid = userCredential.user.uid;
 
-      localStorage.setItem("codigoTurma", classCode);
+      const timeRef = doc(db, "times", classCode);
+      const timeSnap = await getDoc(timeRef);
+
+      if (!timeSnap.exists()) {
+        setError("❌ Turma não encontrada.");
+        return;
+      }
+
+      const timeData = timeSnap.data();
+
+      if (timeData.criadoPor === uid) {
+        // Jogador é a capitã
+        localStorage.setItem("idDoTime", classCode);
+        localStorage.setItem("codigoTurma", classCode);
+        localStorage.setItem("papel", "capitao");
+        localStorage.setItem("uid", uid);
+      } else {
+        // Verifica se é membro aprovado
+        const membro = (timeData.membros || []).find((m: any) => m.uid === uid);
+        if (membro && membro.status === "aprovado") {
+          localStorage.setItem("idDoTime", classCode);
+          localStorage.setItem("codigoTurma", classCode);
+          localStorage.setItem("papel", "membro");
+          localStorage.setItem("uid", uid);
+        } else {
+          setError("❌ Você não está aprovado neste time.");
+          return;
+        }
+      }
+
       navigate("/dashboard");
     } catch (err) {
       console.error("Erro ao logar:", err);
-      setError("Erro ao logar. Verifique email e senha.");
+      setError("Erro ao logar. Verifique email, senha e código da turma.");
     }
   };
 
@@ -46,7 +76,6 @@ export default function Login() {
       <div className="login-container">
         <form onSubmit={handleLogin} className="login-form">
           <img src="/logoepes.png" alt="Logo EPES" className="login-logo" />
-         
 
           {error && <p className="login-error">{error}</p>}
 

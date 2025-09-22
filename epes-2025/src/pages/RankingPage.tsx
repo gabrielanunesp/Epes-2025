@@ -5,7 +5,6 @@ import {
   updateDoc,
   doc,
   getDoc,
-  onSnapshot,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 
@@ -32,24 +31,23 @@ interface Rodada {
 
 const RankingPage: React.FC = () => {
   const [ranking, setRanking] = useState<Time[]>([]);
-  const [liberarFinal, setLiberarFinal] = useState(false);
   const [rodadaAtual, setRodadaAtual] = useState<number>(1);
 
   useEffect(() => {
-    const docRef = doc(db, "controleRodada", "status");
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+    const carregarRodadaAtual = async () => {
+      const docRef = doc(db, "controleRodada", "status");
+      const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setLiberarFinal(docSnap.data().liberarFinal);
         setRodadaAtual(docSnap.data().rodadaAtual || 1);
       }
-    });
+    };
 
-    return () => unsubscribe();
+    carregarRodadaAtual();
   }, []);
 
   useEffect(() => {
     atualizarRanking();
-  }, [liberarFinal, rodadaAtual]);
+  }, [rodadaAtual]);
 
   const atualizarRanking = async () => {
     const codigoTurma = localStorage.getItem("codigoTurma");
@@ -58,11 +56,11 @@ const RankingPage: React.FC = () => {
     const timesSnap = await getDocs(collection(db, "times"));
     const times = timesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Time[];
 
-    const rodadaRef = doc(db, "rodadas", codigoTurma);
-    const rodadaSnap = await getDoc(rodadaRef);
-    const todasRodadas = rodadaSnap.exists()
-      ? Object.values(rodadaSnap.data()?.rodada1 || {}) as Rodada[]
-      : [];
+    const rodadaRef = collection(db, "rodadas", codigoTurma, `rodada${rodadaAtual}`);
+    const rodadaSnap = await getDocs(rodadaRef);
+    const todasRodadas = rodadaSnap.docs
+      .map(doc => doc.data() as Rodada)
+      .filter(r => r.status === "✅");
 
     const timesAtualizados: Time[] = [];
 
@@ -79,7 +77,6 @@ const RankingPage: React.FC = () => {
         const lucro = rodada.lucro ?? 0;
         const satisfacao = rodada.satisfacao ?? 0;
         const caixa = rodada.caixaFinal ?? 0;
-        const status = rodada.status ?? "❌";
 
         totalLucro += lucro;
         totalSatisfacao += satisfacao;
@@ -87,7 +84,6 @@ const RankingPage: React.FC = () => {
         rodadasValidas++;
 
         const isCompliant =
-          status === "✅" &&
           caixa >= 0 &&
           !rodada.decisaoForaDoPrazo &&
           !rodada.atraso;

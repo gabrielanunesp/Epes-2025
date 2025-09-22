@@ -59,7 +59,6 @@ const Relatorio: React.FC = () => {
 
     fetchRodadas();
   }, []);
-
   if (erro) {
     return <p style={{ padding: "2rem", color: "red" }}>{erro}</p>;
   }
