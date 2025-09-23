@@ -57,6 +57,37 @@ export default function PainelResponsavel() {
     setTimes(lista);
   };
 
+  const limparColecoes = async () => {
+    const colecoes = ["decisoes", "jogadores", "times", "controleRodada", "empresas"];
+
+    for (const nome of colecoes) {
+      const snapshot = await getDocs(collection(db, nome));
+      const deletes = snapshot.docs.map((docSnap) => deleteDoc(docSnap.ref));
+      await Promise.all(deletes);
+    }
+
+    const rodadasSnapshot = await getDocs(collection(db, "rodadas"));
+    for (const turmaDoc of rodadasSnapshot.docs) {
+      const turmaId = turmaDoc.id;
+
+      const rodadaSub = collection(db, "rodadas", turmaId, "rodada1");
+      const rodadaSnap = await getDocs(rodadaSub);
+      const subDeletes = rodadaSnap.docs.map((subDoc) => deleteDoc(subDoc.ref));
+      await Promise.all(subDeletes);
+
+      await deleteDoc(doc(db, "rodadas", turmaId));
+    }
+
+    const turmasFantasmas = ["306020", "231614", "455035"];
+    for (const turmaId of turmasFantasmas) {
+      const rodadaSub = collection(db, "rodadas", turmaId, "rodada1");
+      const rodadaSnap = await getDocs(rodadaSub);
+      const subDeletes = rodadaSnap.docs.map((subDoc) => deleteDoc(subDoc.ref));
+      await Promise.all(subDeletes);
+
+      await deleteDoc(doc(db, "rodadas", turmaId));
+    }
+  };
   const aprovarMembro = async (timeId: string, membroUid: string) => {
     const timeRef = doc(db, "times", timeId);
     const snapshot = await getDoc(timeRef);
@@ -100,14 +131,6 @@ export default function PainelResponsavel() {
     });
   };
 
-  const limparColecoes = async () => {
-    const colecoes = ["rodadas", "decisoes", "jogadores", "times"];
-    for (const nome of colecoes) {
-      const snapshot = await getDocs(collection(db, nome));
-      const promises = snapshot.docs.map((doc) => deleteDoc(doc.ref));
-      await Promise.all(promises);
-    }
-  };
   const totalPendentes = times.reduce(
     (acc, t) => acc + t.membros?.filter((m: any) => m.status === "pending").length || 0,
     0

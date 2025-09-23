@@ -22,11 +22,16 @@ const Relatorio: React.FC = () => {
   const [mapaDeNomes, setMapaDeNomes] = useState<Record<string, string>>({});
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
-
+  const papel = localStorage.getItem("papel");
   useEffect(() => {
     const fetchRodadas = async () => {
       try {
-        const codigoTurma = localStorage.getItem("codigoTurma");
+        let codigoTurma = localStorage.getItem("codigoTurma");
+
+        if (papel === "responsavel" && !codigoTurma) {
+          codigoTurma = "turmaExemplo"; // substitua por uma turma real
+        }
+
         if (!codigoTurma) {
           setErro("❌ Código da turma não encontrado.");
           setCarregando(false);
@@ -70,7 +75,6 @@ const Relatorio: React.FC = () => {
   if (rodadas.length === 0) {
     return <p style={{ padding: "2rem" }}>📭 Nenhuma rodada válida encontrada.</p>;
   }
-
   return (
     <div style={{ padding: "20px" }}>
       <h2>📊 Relatório de Rodadas</h2>

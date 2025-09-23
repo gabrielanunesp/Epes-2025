@@ -32,7 +32,7 @@ interface Rodada {
 const RankingPage: React.FC = () => {
   const [ranking, setRanking] = useState<Time[]>([]);
   const [rodadaAtual, setRodadaAtual] = useState<number>(1);
-
+  const papel = localStorage.getItem("papel");
   useEffect(() => {
     const carregarRodadaAtual = async () => {
       const docRef = doc(db, "controleRodada", "status");
@@ -50,7 +50,12 @@ const RankingPage: React.FC = () => {
   }, [rodadaAtual]);
 
   const atualizarRanking = async () => {
-    const codigoTurma = localStorage.getItem("codigoTurma");
+    let codigoTurma = localStorage.getItem("codigoTurma");
+
+    if (papel === "responsavel" && !codigoTurma) {
+      codigoTurma = "turmaExemplo"; // substitua por uma turma real
+    }
+
     if (!codigoTurma) return;
 
     const timesSnap = await getDocs(collection(db, "times"));
@@ -63,7 +68,6 @@ const RankingPage: React.FC = () => {
       .filter(r => r.status === "✅");
 
     const timesAtualizados: Time[] = [];
-
     for (const time of times) {
       const rodadasDoTime = todasRodadas.filter(r => r.timeId === time.id);
 
@@ -101,14 +105,16 @@ const RankingPage: React.FC = () => {
         satisfacaoMedia * 0.2 +
         complianceScore * 0.1;
 
-      await updateDoc(doc(db, "times", time.id), {
-        caixaAcumulado: caixaFinal,
-        lucroTotal: totalLucro,
-        rodadasConcluidas: rodadasValidas,
-        satisfacaoMedia,
-        complianceScore,
-        scoreEPES,
-      });
+      if (papel !== "responsavel") {
+        await updateDoc(doc(db, "times", time.id), {
+          caixaAcumulado: caixaFinal,
+          lucroTotal: totalLucro,
+          rodadasConcluidas: rodadasValidas,
+          satisfacaoMedia,
+          complianceScore,
+          scoreEPES,
+        });
+      }
 
       timesAtualizados.push({
         ...time,
@@ -120,7 +126,6 @@ const RankingPage: React.FC = () => {
         scoreEPES,
       });
     }
-
     timesAtualizados.sort((a, b) => {
       const scoreDiff = (b.scoreEPES ?? 0) - (a.scoreEPES ?? 0);
       if (scoreDiff !== 0) return scoreDiff;

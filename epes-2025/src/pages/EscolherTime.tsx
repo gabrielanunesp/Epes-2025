@@ -79,6 +79,7 @@ export default function EscolherTime() {
 
       navigate("/dashboard");
     } catch (err) {
+      console.log("🔥 Erro ao criar time:", err);
       setMensagem("❌ Erro ao criar time. Verifique os dados.");
     }
   };

@@ -32,7 +32,7 @@ export default function Dashboard() {
   } | null>(null);
   const [user, setUser] = useState<any>(null);
   const [codigoTurma, setCodigoTurma] = useState<string | null>(null);
-
+  const papel = localStorage.getItem("papel");
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -43,6 +43,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchEmpresa = async () => {
+      if (papel === "responsavel") {
+        setCurrentStep("main");
+        return;
+      }
+
       if (!codigoTurma || !user) return;
 
       try {
@@ -107,7 +112,7 @@ export default function Dashboard() {
   };
 
   const handleSaveEmpresa = async () => {
-    if (!user || !codigoTurma) return;
+    if (!user || !codigoTurma || papel === "responsavel") return;
 
     if (!nome || !setor || !missao) {
       alert("⚠️ Preencha todos os campos obrigatórios.");
@@ -134,7 +139,6 @@ export default function Dashboard() {
       console.error("Erro ao salvar empresa:", error);
     }
   };
-
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -189,107 +193,98 @@ export default function Dashboard() {
               fontWeight: 500,
               lineHeight: 1.6
             }}>
-  <p>
-  👥 <strong>Bem-vindo ao Dashboard da sua equipe!</strong><br /><br />
-  Aqui você acompanha o desempenho da empresa, acessa relatórios, rankings e toma decisões estratégicas a cada rodada.<br /><br />
+              <p>
+                👥 <strong>Bem-vindo ao Dashboard da sua equipe!</strong><br /><br />
+                Aqui você acompanha o desempenho da empresa, acessa relatórios, rankings e toma decisões estratégicas a cada rodada.<br /><br />
+                🧭 <strong>Identidade da Empresa:</strong> Antes de iniciar as decisões, defina o nome, setor, missão e estilo visual da sua empresa. Essa identidade será usada em todas as rodadas e impacta a percepção dos clientes e concorrentes.<br /><br />
+                👑 <strong>Capitão:</strong> Apenas o capitão pode criar ou editar a identidade da empresa. O botão <strong>"Criar Empresa"</strong> aparece exclusivamente para o capitão que criou a equipe. Preencha com atenção — sua equipe depende disso!<br /><br />
+                ⚠️ <strong>Importante:</strong> A identidade será exibida nos rankings e relatórios. Escolha com estratégia e criatividade!<br /><br />
+                🕒 <strong>Rodadas:</strong> São liberadas pelo administrador da turma. Ao iniciar, um cronômetro é ativado com prazo máximo até <strong>23:59</strong> do mesmo dia. Mesmo após o capitão salvar as decisões, o cronômetro continua ativo até o fim. Após esse horário, a rodada é encerrada e os resultados ficam disponíveis nas páginas de <strong>Relatórios</strong> e <strong>Ranking</strong>.<br /><br />
+                📦 <strong>Decisões:</strong> No card de decisões, apenas o capitão pode enviar as escolhas da equipe. O botão de envio só aparece enquanto a rodada estiver aberta. Fique atento ao tempo e alinhe as decisões com seu grupo antes de confirmar!<br /><br />
+                ✅ <strong>Dica:</strong> Use os relatórios e rankings para embasar suas estratégias. Cada rodada é uma chance de ajustar o rumo da empresa e buscar a liderança!
+              </p>
+            </div>
+            {isCapitao && papel !== "responsavel" && (
+              <div className="cadastro-empresa-box">
+                <h2>{empresaExistente ? "✏️ Editar Empresa" : "🚀 Criar Empresa"}</h2>
+                <p>
+                  {empresaExistente
+                    ? "Você pode atualizar os dados da empresa."
+                    : "Como capitão, você deve criar a identidade da empresa antes de iniciar as decisões."}
+                </p>
 
-  🧭 <strong>Identidade da Empresa:</strong> Antes de iniciar as decisões, defina o nome, setor, missão e estilo visual da sua empresa. Essa identidade será usada em todas as rodadas e impacta a percepção dos clientes e concorrentes.<br /><br />
+                <label>
+                  Nome da empresa:
+                  <input
+                    type="text"
+                    value={nome}
+                    onChange={(e) => setNome(e.target.value)}
+                    placeholder={empresaInfo?.nome || "Nome da empresa"}
+                  />
+                </label>
 
-  👑 <strong>Capitão:</strong> Apenas o capitão pode criar ou editar a identidade da empresa. O botão <strong>"Criar Empresa"</strong> aparece exclusivamente para o capitão que criou a equipe. Preencha com atenção — sua equipe depende disso!<br /><br />
+                <label>
+                  Setor de atuação:
+                  <input
+                    type="text"
+                    value={setor}
+                    onChange={(e) => setSetor(e.target.value)}
+                    placeholder={empresaInfo?.setor || "Setor de atuação"}
+                  />
+                </label>
 
-  ⚠️ <strong>Importante:</strong> A identidade será exibida nos rankings e relatórios. Escolha com estratégia e criatividade!<br /><br />
+                <label>
+                  Missão ou slogan:
+                  <textarea
+                    value={missao}
+                    onChange={(e) => setMissao(e.target.value)}
+                    placeholder={empresaInfo?.missao || "Missão ou slogan"}
+                  />
+                </label>
 
-  🕒 <strong>Rodadas:</strong> São liberadas pelo administrador da turma. Ao iniciar, um cronômetro é ativado com prazo máximo até <strong>23:59</strong> do mesmo dia. Mesmo após o capitão salvar as decisões, o cronômetro continua ativo até o fim. Após esse horário, a rodada é encerrada e os resultados ficam disponíveis nas páginas de <strong>Relatórios</strong> e <strong>Ranking</strong>.<br /><br />
+                <label>
+                  URL da logo (opcional):
+                  <input
+                    type="text"
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    placeholder={empresaInfo?.logoUrl || "https://..."}
+                  />
+                </label>
 
-  📦 <strong>Decisões:</strong> No card de decisões, apenas o capitão pode enviar as escolhas da equipe. O botão de envio só aparece enquanto a rodada estiver aberta. Fique atento ao tempo e alinhe as decisões com seu grupo antes de confirmar!<br /><br />
+                <label>
+                  Cor da identidade:
+                  <input
+                    type="color"
+                    value={cor}
+                    onChange={(e) => setCor(e.target.value)}
+                  />
+                </label>
 
-  ✅ <strong>Dica:</strong> Use os relatórios e rankings para embasar suas estratégias. Cada rodada é uma chance de ajustar o rumo da empresa e buscar a liderança!
-</p>
-
-</div>
-            {isCapitao && (
-              <>
-                <div className="cadastro-empresa-box">
-                  <h2>{empresaExistente ? "✏️ Editar Empresa" : "🚀 Criar Empresa"}</h2>
-                  <p>
-                    {empresaExistente
-                      ? "Você pode atualizar os dados da empresa."
-                      : "Como capitão, você deve criar a identidade da empresa antes de iniciar as decisões."}
-                  </p>
-
-                  <label>
-                    Nome da empresa:
-                    <input
-                      type="text"
-                      value={nome}
-                      onChange={(e) => setNome(e.target.value)}
-                      placeholder={empresaInfo?.nome || "Nome da empresa"}
-                    />
-                  </label>
-
-                  <label>
-                    Setor de atuação:
-                    <input
-                      type="text"
-                      value={setor}
-                      onChange={(e) => setSetor(e.target.value)}
-                      placeholder={empresaInfo?.setor || "Setor de atuação"}
-                    />
-                  </label>
-
-                  <label>
-                    Missão ou slogan:
-                    <textarea
-                      value={missao}
-                      onChange={(e) => setMissao(e.target.value)}
-                      placeholder={empresaInfo?.missao || "Missão ou slogan"}
-                    />
-                  </label>
-
-                  <label>
-                    URL da logo (opcional):
-                    <input
-                      type="text"
-                      value={logoUrl}
-                      onChange={(e) => setLogoUrl(e.target.value)}
-                      placeholder={empresaInfo?.logoUrl || "https://..."}
-                    />
-                  </label>
-
-                  <label>
-                    Cor da identidade:
-                    <input
-                      type="color"
-                      value={cor}
-                      onChange={(e) => setCor(e.target.value)}
-                    />
-                  </label>
-
-                  <button onClick={handleSaveEmpresa}>
-                    {empresaExistente ? "💾 Atualizar Empresa" : "💾 Criar Empresa"}
-                  </button>
-                </div>
-              </>
+                <button onClick={handleSaveEmpresa}>
+                  {empresaExistente ? "💾 Atualizar Empresa" : "💾 Criar Empresa"}
+                </button>
+              </div>
             )}
 
             <div className="dashboard-grid">
               <RoundStatusCard onOpenDecisions={handleOpenDecisions} />
 
               <Card
-                title="🏆 Ranking"
-                description="Veja a pontuação dos grupos e jogadores."
+                title="📊 Pontuações da Rodada"
+                description="Veja o desempenho do grupo e nesta rodada."
                 onClick={() => navigate("/ranking")}
               />
 
               <Card
-                title="📊 Relatório"
-                description="Visualize receita, custos e lucro de forma simples e direta."
+                title="📁 Relatório do Grupo"
+                description="Revise seus dados para melhorar sua pontuação."
                 onClick={() => navigate("/relatorio")}
               />
 
               <Card
-                title="🎮 Sobre o Jogo"
-                description="Entenda as regras, objetivos e como pontuar na simulação."
+                title="🧠 Painel Estratégico"
+                description="Acompanhe os resultados financeiros e decisões do seu time."
                 onClick={() => navigate("/informacoes")}
               />
             </div>
