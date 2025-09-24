@@ -31,58 +31,70 @@ export default function EscolherTime() {
     return valores.every((v) => v.trim() !== "");
   };
 
-  const handleCriar = async () => {
-    if (!camposPreenchidos(nome, email, senha, nomeTime, codigo)) {
-      setMensagem("⚠️ Preencha todos os campos antes de criar o time.");
-      return;
+ const handleCriar = async () => {
+  if (!camposPreenchidos(nome, email, senha, nomeTime, codigo)) {
+    setMensagem("⚠️ Preencha todos os campos antes de criar o time.");
+    return;
+  }
+
+  console.log("📡 Iniciando criação de usuário...");
+  console.log("📧 E-mail:", email);
+  console.log("🔑 Senha:", senha);
+
+  try {
+    const userCred = await createUserWithEmailAndPassword(auth, email, senha);
+    console.log("✅ Usuário criado com sucesso:", userCred.user.uid);
+
+    const uid = userCred.user.uid;
+
+    // 🔐 Grava os dados no Firestore
+    await setDoc(doc(db, "times", codigo), {
+      id: codigo,
+      nome: nomeTime,
+      criadoPor: uid,
+      membros: [{ uid, nome, email, status: "aprovado" }],
+    });
+
+    await setDoc(doc(db, "users", uid), {
+      nome,
+      email,
+      papel: "capitao",
+    });
+
+    await setDoc(doc(db, "jogadores", uid), {
+      nome,
+      email,
+    });
+
+    // 💾 Salva dados localmente
+    localStorage.setItem("idDoTime", codigo);
+    localStorage.setItem("codigoTurma", codigo);
+    localStorage.setItem("nomeDoTime", nomeTime);
+    localStorage.setItem("papel", "capitao");
+
+    // 🚀 Redireciona para o dashboard
+    navigate("/dashboard");
+  } catch (err: any) {
+    console.log("🔥 Erro na criação do usuário:", err.code, err.message);
+
+    if (err.code === "auth/email-already-in-use") {
+      setMensagem("❌ Este e-mail já está em uso. Tente outro ou faça login.");
+    } else if (err.code === "auth/invalid-email") {
+      setMensagem("❌ E-mail inválido. Verifique o formato.");
+    } else if (err.code === "auth/weak-password") {
+      setMensagem("❌ Senha fraca. Use pelo menos 6 caracteres.");
+    } else if (err.code === "auth/network-request-failed") {
+      setMensagem("❌ Falha de rede. Verifique sua conexão com a internet.");
+    } else if (err.code === "auth/operation-not-allowed") {
+      setMensagem("❌ Método de login não permitido. Verifique se 'E-mail/senha' está ativado.");
+    } else {
+      setMensagem(`❌ Erro inesperado: ${err.message || "Verifique os dados ou tente novamente."}`);
     }
+  }
+};
 
-    try {
-      const configRef = doc(db, "configuracoes", "geral");
-      const configSnap = await getDoc(configRef);
 
-      if (!configSnap.exists()) {
-        setErroCarregamento(true);
-        return;
-      }
 
-      if (configSnap.data()?.cadastroBloqueado) {
-        setMensagem("🚫 Cadastro de novos times está bloqueado após a primeira rodada.");
-        return;
-      }
-
-      const userCred = await createUserWithEmailAndPassword(auth, email, senha);
-      const uid = userCred.user.uid;
-
-      await setDoc(doc(db, "times", codigo), {
-        id: codigo,
-        nome: nomeTime,
-        criadoPor: uid,
-        membros: [{ uid, nome, email, status: "aprovado" }],
-      });
-
-      localStorage.setItem("idDoTime", codigo);
-      localStorage.setItem("codigoTurma", codigo);
-      localStorage.setItem("nomeDoTime", nomeTime);
-      localStorage.setItem("papel", "capitao");
-
-      await setDoc(doc(db, "users", uid), {
-        nome,
-        email,
-        papel: "capitao",
-      });
-
-      await setDoc(doc(db, "jogadores", uid), {
-        nome,
-        email,
-      });
-
-      navigate("/dashboard");
-    } catch (err) {
-      console.log("🔥 Erro ao criar time:", err);
-      setMensagem("❌ Erro ao criar time. Verifique os dados.");
-    }
-  };
 
   const handleIngressar = async () => {
     try {
@@ -238,3 +250,21 @@ export default function EscolherTime() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

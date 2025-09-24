@@ -31,3 +31,4 @@ export default function AjudaModal({ onClose }: AjudaModalProps) {
     </div>
   );
 }
+
