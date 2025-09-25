@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../services/firebase";
 import {
@@ -12,7 +12,24 @@ import {
   setDoc,
 } from "firebase/firestore";
 import AjudaModal from "../components/AjudaModal";
+import RegrasCadastroModal from "../components/RegrasCadastroModal";
 import "./EscolherTime.css";
+
+const gerarCodigoUnico = async (): Promise<string> => {
+  let codigo: string = "";
+  let existe = true;
+
+  while (existe) {
+    codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    const docRef = doc(db, "times", codigo);
+    const snapshot = await getDoc(docRef);
+    existe = snapshot.exists();
+  }
+
+  return codigo;
+};
+
+
 
 export default function EscolherTime() {
   const [modo, setModo] = useState<"criar" | "ingressar" | "responsavel">("ingressar");
@@ -24,8 +41,22 @@ export default function EscolherTime() {
   const [mensagem, setMensagem] = useState("");
   const [showAjuda, setShowAjuda] = useState(false);
   const [erroCarregamento, setErroCarregamento] = useState(false);
+  const [showRegras, setShowRegras] = useState(false);
+
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+  const gerar = async () => {
+    if (modo === "criar" && codigo === "") {
+      const novoCodigo = await gerarCodigoUnico();
+      console.log("🔢 Código gerado:", novoCodigo);
+      setCodigo(novoCodigo);
+    }
+  };
+  gerar();
+}, [modo, codigo]);
+
 
   const camposPreenchidos = (...valores: string[]) => {
     return valores.every((v) => v.trim() !== "");
@@ -195,7 +226,10 @@ export default function EscolherTime() {
   return (
     <div className="container-escolher-time">
       <button className="btn-ajuda" onClick={() => setShowAjuda(true)}>❓ Ajuda</button>
+      <button className="btn-ajuda" onClick={() => setShowRegras(true)}>📋 Regras</button>
       {showAjuda && <AjudaModal onClose={() => setShowAjuda(false)} />}
+        {showRegras && <RegrasCadastroModal onClose={() => setShowRegras(false)} />}
+
 
       {erroCarregamento && (
         <div className="erro-carregamento">
@@ -218,7 +252,8 @@ export default function EscolherTime() {
             <input type="email" placeholder="📧 E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
             <input type="password" placeholder="🔒 Senha" value={senha} onChange={(e) => setSenha(e.target.value)} />
             <input type="text" placeholder="🏷️ Nome do time" value={nomeTime} onChange={(e) => setNomeTime(e.target.value)} />
-            <input type="text" placeholder="🔑 Código da turma" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
+            <p className="codigo-gerado">🔢 Código gerado: {codigo}</p>
+            <input type="text" placeholder="🔑 Código da turma" value={codigo} disabled />
             <button onClick={handleCriar}>🚀 Criar Time</button>
           </>
         )}
