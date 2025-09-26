@@ -10,7 +10,10 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
+  arrayUnion,
 } from "firebase/firestore";
+import { runTransaction } from "firebase/firestore";
 import AjudaModal from "../components/AjudaModal";
 import RegrasCadastroModal from "../components/RegrasCadastroModal";
 import "./EscolherTime.css";
@@ -143,8 +146,21 @@ export default function EscolherTime() {
       }
 
       const userCred = await createUserWithEmailAndPassword(auth, email, senha);
-      const uid = userCred.user.uid;
-      localStorage.setItem("uid", uid);
+const uid = userCred.user.uid;
+localStorage.setItem("uid", uid);
+
+
+// ✅ Aguarda autenticação estar ativa
+await new Promise((resolve) => {
+  const unsubscribe = auth.onAuthStateChanged((user) => {
+    if (user) {
+      console.log("✅ Usuário autenticado:", user.uid);
+      unsubscribe();
+      resolve(null);
+    }
+  });
+});
+
 
       const timeRef = doc(db, "times", codigo);
       const snapshot = await getDoc(timeRef);
@@ -165,10 +181,22 @@ export default function EscolherTime() {
         return;
       }
 
-      await setDoc(timeRef, {
-        ...dados,
-        membros: [...membros, { uid, nome, email, status: "pending" }],
-      });
+const novoMembro = { uid, nome, email, status: "pending" };
+
+// Garante que o campo membros existe
+if (!dados.membros) {
+  await updateDoc(timeRef, {
+    membros: [],
+  });
+}
+
+// Adiciona o novo membro com segurança
+await updateDoc(timeRef, {
+  membros: arrayUnion(novoMembro),
+});
+
+
+
 
       await setDoc(doc(db, "users", uid), {
         nome,
@@ -182,9 +210,22 @@ export default function EscolherTime() {
       });
 
       setMensagem("✅ Solicitação enviada! Aguarde aprovação.");
-    } catch (err) {
-      setMensagem("❌ Erro ao ingressar. Verifique os dados.");
-    }
+    } catch (err: any) {
+  console.log("🔥 Erro ao ingressar:", err.code, err.message);
+
+  if (err.code === "auth/email-already-in-use") {
+    setMensagem("❌ Este e-mail já está em uso. Tente outro ou faça login.");
+  } else if (err.code === "auth/invalid-email") {
+    setMensagem("❌ E-mail inválido. Verifique o formato.");
+  } else if (err.code === "auth/weak-password") {
+    setMensagem("❌ Senha fraca. Use pelo menos 6 caracteres.");
+  } else if (err.code === "auth/network-request-failed") {
+    setMensagem("❌ Falha de rede. Verifique sua conexão com a internet.");
+  } else {
+    setMensagem(`❌ Erro inesperado: ${err.message || "Verifique os dados ou tente novamente."}`);
+  }
+}
+
   };
 
   const handleEntrarComoResponsavel = async () => {

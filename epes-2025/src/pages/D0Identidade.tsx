@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { auth, db } from "../services/firebase";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 export default function D0Identidade() {
@@ -15,7 +15,7 @@ export default function D0Identidade() {
     const user = auth.currentUser;
     const codigoTurma = localStorage.getItem("codigoTurma");
 
-    if (!user || !codigoTurma) {
+    if (!user || typeof codigoTurma !== "string" || codigoTurma.trim() === "") {
       setMensagem("❌ Usuário não autenticado ou código da turma ausente.");
       return;
     }
@@ -25,21 +25,24 @@ export default function D0Identidade() {
       return;
     }
 
-    try {
-      await setDoc(doc(db, "empresas", codigoTurma), {
-        nome: nomeEmpresa,
-        publicoAlvo,
-        missao: slogan,
-        cor,
-        identidadeDefinida: true,
-        criadoPor: user.uid,
-        timestamp: new Date(),
-      });
+    const dados = {
+      nome: nomeEmpresa,
+      publicoAlvo,
+      missao: slogan,
+      cor,
+      identidadeDefinida: true,
+      criadoPor: user.uid,
+      timestamp: serverTimestamp(),
+    };
 
+    console.log("📤 Dados enviados:", dados);
+
+    try {
+      await setDoc(doc(db, "empresas", codigoTurma), dados);
       setMensagem("✅ Identidade definida com sucesso!");
       navigate("/d1-pre-lancamento");
     } catch (error) {
-      console.error("Erro ao salvar identidade:", error);
+      console.error("🔥 Erro ao salvar identidade:", error);
       setMensagem("❌ Erro ao salvar. Tente novamente.");
     }
   };
