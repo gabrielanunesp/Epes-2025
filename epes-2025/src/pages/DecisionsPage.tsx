@@ -134,6 +134,11 @@ useEffect(() => {
   const salvarDecisao = async () => {
     const timeId = localStorage.getItem("idDoTime");
 
+      const geralRef = doc(db, "configuracoes", "geral");
+  const geralSnap = await getDoc(geralRef);
+  const rodadaAtual = geralSnap.data()?.rodadaAtual ?? 1;
+
+
     if (!isCapitao) {
       setMensagemCapitao("🔒 Apenas o capitão pode enviar a decisão final.");
       return;
@@ -147,30 +152,35 @@ useEffect(() => {
     }
 
     const dados = {
-      produto: produtoOpcoes[produtoIndex],
-      marketing: marketingOpcoes[marketingIndex],
-      capacidade,
-      equipe: equipeOpcoes[equipeIndex],
-      marca: marcaProtegida,
-      beneficio: beneficioOpcoes[beneficioIndex],
-      preco,
-      totalUsado,
-      caixaRestante,
-      publicoAlvo,
-      ea: resultado.ea ?? 0,
-      share: resultado.share ?? 0,
-      demanda: resultado.demanda ?? 0,
-      receita: resultado.receita ?? 0,
-      lucro: resultado.lucro ?? 0,
-      caixaFinal: resultado.caixaFinal ?? 0,
-      timestamp: new Date(),
-      codigoTurma,
-      uid,
-      timeId,
-    };
+  produto: produtoOpcoes[produtoIndex],
+  marketing: marketingOpcoes[marketingIndex],
+  capacidade,
+  equipe: equipeOpcoes[equipeIndex],
+  marca: marcaProtegida,
+  beneficio: beneficioOpcoes[beneficioIndex],
+  preco,
+  totalUsado,
+  caixaRestante,
+  publicoAlvo,
+  ea: resultado.ea ?? 0,
+  share: resultado.share ?? 0,
+  demanda: resultado.demanda ?? 0,
+  receita: resultado.receita ?? 0,
+  custo: resultado.custo ?? 0,           // ✅ novo campo
+  lucro: resultado.lucro ?? 0,
+  reinvestimento: resultado.reinvestimento ?? 0, // ✅ novo campo
+  caixaFinal: resultado.caixaFinal ?? 0,
+  satisfacao: resultado.satisfacao ?? 0, // ✅ novo campo
+  timestamp: new Date(),
+  codigoTurma,
+  uid,
+  timeId,
+};
 
-    await setDoc(doc(db, "decisoes", `${codigoTurma}_rodada1_${uid}`), dados);
-    await setDoc(doc(db, "rodadas", codigoTurma, "rodada1", uid), {
+
+    await setDoc(doc(db, "decisoes", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), dados);
+    await setDoc(doc(db, "rodadas", codigoTurma, `rodada${rodadaAtual}`, uid), {
+
   timeId: timeId,
   ea: resultado.ea,
   demanda: resultado.demanda,
@@ -185,7 +195,8 @@ useEffect(() => {
   timestamp: new Date(),
 });
 
-await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada1_${uid}`), {
+await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
+
   ...dados,
   status: "✅"
 });
@@ -193,6 +204,8 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada1_${uid}`), {
 
 
     setMensagemCapitao("✅ Decisão salva com sucesso!");
+   
+
   };
   return (
     <div className="decision-container">
