@@ -39,6 +39,7 @@ export default function EscolherTime() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [codigo, setCodigo] = useState("");
   const [nomeTime, setNomeTime] = useState("");
   const [mensagem, setMensagem] = useState("");
@@ -291,7 +292,22 @@ await updateDoc(timeRef, {
           <>
             <input type="text" placeholder="👤 Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
             <input type="email" placeholder="📧 E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <input type="password" placeholder="🔒 Senha" value={senha} onChange={(e) => setSenha(e.target.value)} />
+            <div className="campo-senha">
+  <input
+    type={mostrarSenha ? "text" : "password"}
+    placeholder="🔒 Senha"
+    value={senha}
+    onChange={(e) => setSenha(e.target.value)}
+  />
+  <button
+    type="button"
+    className="btn-ver-senha"
+    onClick={() => setMostrarSenha(!mostrarSenha)}
+  >
+    {mostrarSenha ? "🙈 Ocultar" : "👁️ Mostrar"}
+  </button>
+</div>
+
             <input type="text" placeholder="🏷️ Nome do time" value={nomeTime} onChange={(e) => setNomeTime(e.target.value)} />
             <p className="codigo-gerado">🔢 Código gerado: {codigo}</p>
             <input type="text" placeholder="🔑 Código da turma" value={codigo} disabled />
@@ -303,7 +319,22 @@ await updateDoc(timeRef, {
           <>
             <input type="text" placeholder="👤 Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
             <input type="email" placeholder="📧 E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <input type="password" placeholder="🔒 Senha" value={senha} onChange={(e) => setSenha(e.target.value)} />
+            <div className="campo-senha">
+  <input
+    type={mostrarSenha ? "text" : "password"}
+    placeholder="🔒 Senha"
+    value={senha}
+    onChange={(e) => setSenha(e.target.value)}
+  />
+  <button
+    type="button"
+    className="btn-ver-senha"
+    onClick={() => setMostrarSenha(!mostrarSenha)}
+  >
+    {mostrarSenha ? "🙈 Ocultar" : "👁️ Mostrar"}
+  </button>
+</div>
+
             <input type="text" placeholder="🔑 Código da turma" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
             <button onClick={handleIngressar}>📥 Solicitar Ingresso</button>
           </>
@@ -314,7 +345,22 @@ await updateDoc(timeRef, {
             <h3> SOMENTE ADM </h3>
             <input type="text" placeholder="👤 Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} />
             <input type="email" placeholder="📧 E-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <input type="password" placeholder="🔒 Senha" value={senha} onChange={(e) => setSenha(e.target.value)} />
+            <div className="campo-senha">
+  <input
+    type={mostrarSenha ? "text" : "password"}
+    placeholder="🔒 Senha"
+    value={senha}
+    onChange={(e) => setSenha(e.target.value)}
+  />
+  <button
+    type="button"
+    className="btn-ver-senha"
+    onClick={() => setMostrarSenha(!mostrarSenha)}
+  >
+    {mostrarSenha ? "🙈 Ocultar" : "👁️ Mostrar"}
+  </button>
+</div>
+
             <button onClick={handleEntrarComoResponsavel}>🛡️ Entrar como Responsável</button>
           </>
         )}

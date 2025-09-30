@@ -303,3 +303,14 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+

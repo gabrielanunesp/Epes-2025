@@ -40,7 +40,7 @@ export default function D0Identidade() {
     try {
       await setDoc(doc(db, "empresas", codigoTurma), dados);
       setMensagem("✅ Identidade definida com sucesso!");
-      navigate("/d1-pre-lancamento");
+      navigate("/dashboard");
     } catch (error) {
       console.error("🔥 Erro ao salvar identidade:", error);
       setMensagem("❌ Erro ao salvar. Tente novamente.");
@@ -75,7 +75,28 @@ export default function D0Identidade() {
       />
 
       <label>🎨 Cor da marca:</label>
-      <input type="color" value={cor} onChange={(e) => setCor(e.target.value)} />
+<div
+  onClick={() => document.getElementById("seletor-cor")?.click()}
+  style={{
+    width: "40px",
+    height: "40px",
+    backgroundColor: cor,
+    border: "2px solid #ccc",
+    borderRadius: "4px",
+    cursor: "pointer",
+    display: "inline-block",
+    marginLeft: "10px",
+  }}
+  title={`Cor atual: ${cor}`}
+></div>
+
+<input
+  type="color"
+  id="seletor-cor"
+  value={cor}
+  onChange={(e) => setCor(e.target.value)}
+  style={{ display: "none" }}
+/>
 
       <button onClick={handleSalvar} style={{ marginTop: "1rem" }}>
         💾 Salvar Identidade

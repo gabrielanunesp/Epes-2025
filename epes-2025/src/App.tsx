@@ -15,7 +15,7 @@ import Informacoes from './pages/Informacoes';
 import EscolherTime from './pages/EscolherTime';
 import PainelResponsavel from './pages/PainelResponsavel';
 import D0Identidade from './pages/D0Identidade'; // ✅ Etapa de identidade
-import D1Decisao from './pages/D1Decisao';       // ✅ Etapa de pré-lançamento
+
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -48,10 +48,6 @@ function App() {
         <Route
           path="/d0-identidade"
           element={user ? <D0Identidade /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/d1-pre-lancamento"
-          element={user ? <D1Decisao /> : <Navigate to="/login" />}
         />
 
         {/* ✅ Rotas principais */}
