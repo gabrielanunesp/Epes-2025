@@ -8,6 +8,7 @@ export default function DecisionPage() {
   const [publicoAlvo, setPublicoAlvo] = useState("");
   const [membros, setMembros] = useState<{ uid: string }[]>([]);
   const [rodadaAtiva, setRodadaAtiva] = useState(false);
+  const [rodadaAtual, setRodadaAtual] = useState(1);
   const [tempoRestante, setTempoRestante] = useState("");
   const [mensagemCapitao, setMensagemCapitao] = useState("");
   const [uid, setUid] = useState("");
@@ -95,6 +96,8 @@ useEffect(() => {
       }
 
       setRodadaAtiva(geralData?.rodadaAtiva === true);
+      setRodadaAtual(geralData?.rodadaAtual ?? 1);
+
     };
 
     carregarDados();
@@ -268,14 +271,67 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
       <p><strong>🧮 Caixa restante:</strong> R$ {formatar(caixaRestante)}</p>
 
       <h3 style={{ marginTop: "2rem" }}>📋 Resumo das Decisões</h3>
-      <div className="indicators">
-        <p>📈 EA: {resultado.ea}</p>
-        <p>📊 Share: {resultado.share}%</p>
-        <p>🛍️ Demanda: {formatar(resultado.demanda)}</p>
-        <p>💰 Receita: R$ {formatar(resultado.receita)}</p>
-        <p>📉 Lucro: R$ {formatar(resultado.lucro)}</p>
-        <p>🏦 Caixa Final: R$ {formatar(resultado.caixaFinal)}</p>
-      </div>
+<div className="indicators">
+  <p>
+    📈 <span
+      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+      onClick={() => window.alert("EA (Efetividade da Ação): mede o impacto das suas decisões estratégicas.")}
+    >
+      EA
+    </span>: {resultado.ea}
+  </p>
+
+  {rodadaAtual > 1 ? (
+    <p>
+      📊 <span
+        style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+        onClick={() => window.alert("Share: fatia de mercado conquistada pela sua empresa nesta rodada.")}
+      >
+        Share
+      </span>: {resultado.share}%
+    </p>
+  ) : (
+    <p className="indicator-note">📊 Share será exibido a partir da segunda rodada.</p>
+  )}
+
+  <p>
+    🛍️ <span
+      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+      onClick={() => window.alert("Demanda: número de unidades que o mercado quer comprar da sua empresa.")}
+    >
+      Demanda
+    </span>: {formatar(resultado.demanda)}
+  </p>
+
+  <p>
+    💰 <span
+      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+      onClick={() => window.alert("Receita: valor total obtido com as vendas realizadas nesta rodada.")}
+    >
+      Receita
+    </span>: R$ {formatar(resultado.receita)}
+  </p>
+
+  <p>
+    📉 <span
+      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+      onClick={() => window.alert("Lucro: receita menos os custos totais da rodada.")}
+    >
+      Lucro
+    </span>: R$ {formatar(resultado.lucro)}
+  </p>
+
+  <p>
+    🏦 <span
+      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+      onClick={() => window.alert("Caixa Final: saldo restante após os custos e reinvestimentos da rodada.")}
+    >
+      Caixa Final
+    </span>: R$ {formatar(resultado.caixaFinal)}
+  </p>
+</div>
+
+
 
       {!rodadaAtiva && (
         <div className="alert red">⛔ A rodada está fechada. Aguarde o responsável iniciar a próxima rodada.</div>

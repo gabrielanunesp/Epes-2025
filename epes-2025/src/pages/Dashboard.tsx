@@ -118,14 +118,15 @@ export default function Dashboard() {
     }
 
     const empresaData = {
-      nome,
-      missao,
-      logoUrl,
-      cor,
-      criadoPor: user.uid,
-      identidadeDefinida: true,
-      timestamp: new Date(),
-    };
+  nome,
+  missao,
+  logoUrl,
+  cor,
+  publicoAlvo: empresaInfo?.publicoAlvo || "", // ✅ preserva o valor original
+  criadoPor: user.uid,
+  identidadeDefinida: true,
+  timestamp: new Date(),
+};
 
     try {
       await setDoc(doc(db, "empresas", codigoTurma), empresaData);
