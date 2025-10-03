@@ -275,7 +275,7 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
   <p>
     📈 <span
       style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("EA (Efetividade da Ação): mede o impacto das suas decisões estratégicas.")}
+      onClick={() => window.alert("Efeito de atratividade: representa o quanto sua oferta é atrativa para o público-alvo.")}
     >
       EA
     </span>: {resultado.ea}
@@ -297,7 +297,7 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
   <p>
     🛍️ <span
       style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("Demanda: número de unidades que o mercado quer comprar da sua empresa.")}
+      onClick={() => window.alert("Quantidade estimada de consumidores interessados.")}
     >
       Demanda
     </span>: {formatar(resultado.demanda)}
@@ -306,7 +306,7 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
   <p>
     💰 <span
       style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("Receita: valor total obtido com as vendas realizadas nesta rodada.")}
+      onClick={() => window.alert("Valor máximo que poderá obter com as vendas realizadas nesta rodada.")}
     >
       Receita
     </span>: R$ {formatar(resultado.receita)}
@@ -315,7 +315,7 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
   <p>
     📉 <span
       style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("Lucro: receita menos os custos totais da rodada.")}
+      onClick={() => window.alert("Potencial de lucro para essa rodada.")}
     >
       Lucro
     </span>: R$ {formatar(resultado.lucro)}
@@ -324,12 +324,17 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
   <p>
     🏦 <span
       style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("Caixa Final: saldo restante após os custos e reinvestimentos da rodada.")}
+      onClick={() => window.alert("Potencial de saldo restante após os custos e reinvestimento.")}
     >
       Caixa Final
     </span>: R$ {formatar(resultado.caixaFinal)}
   </p>
 </div>
+
+<p style={{ marginTop: "1rem", fontStyle: "italic" }}>
+  💼 Total do caixa mais investimento: R$ 500.000 disponíveis nesta rodada.
+</p>
+
 
 
 
