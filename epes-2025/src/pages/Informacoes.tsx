@@ -36,177 +36,197 @@ export default function Informacoes() {
   const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
   const [rodadaMaxima, setRodadaMaxima] = useState(10);
 
-  const papel = localStorage.getItem("papel");
-  const grupoValido =
-    papel === "responsavel" || papel === "capitao" ? true : true;
+  // Carrega parâmetros gerais (rodadaFinal etc.)
   useEffect(() => {
     const buscarRodadaAtual = async () => {
       try {
         const geralRef = doc(db, "configuracoes", "geral");
         const geralSnap = await getDoc(geralRef);
         const rodadaFinal = geralSnap.data()?.rodadaFinal ?? 10;
-setRodadaMaxima(rodadaFinal);
+        setRodadaMaxima(rodadaFinal);
       } catch (error) {
-        console.error("Erro ao buscar rodada atual:", error);
+        console.error("Erro ao buscar rodada final:", error);
       }
     };
-
     buscarRodadaAtual();
   }, []);
+
+  // Busca e monta o relatório
   useEffect(() => {
     const fetchResumoGlobal = async () => {
       try {
+        setErro(null);
+        setCarregando(true);
+
+        // 1) Gate: só libera se a rodada estiver fechada OU o prazo já tiver passado
+        const geralRef = doc(db, "configuracoes", "geral");
+        const geralSnap = await getDoc(geralRef);
+        const geral = geralSnap.data() || {};
+        const ativa = geral?.rodadaAtiva === true;
+        const prazoMs =
+          geral?.prazo?.toMillis ? geral.prazo.toMillis() : null;
+        const agora = Date.now();
+
+        if (ativa && prazoMs && agora < prazoMs) {
+          setErro(
+            "⏳ A rodada está aberta. O relatório libera quando fechar ou quando o prazo expirar."
+          );
+          setResumoTurmas({});
+          setRanking([]);
+          setRankingFinalGlobal([]);
+          setCarregando(false);
+          return;
+        }
+
+        // 2) Mapa de nomes (times)
         const nomes: Record<string, string> = {};
         const timesSnap = await getDocs(collection(db, "times"));
-        timesSnap.docs.forEach(doc => {
-          const data = doc.data();
-          nomes[doc.id] = data.nome || doc.id;
+        timesSnap.docs.forEach((d) => {
+          const data = d.data() as any;
+          nomes[d.id] = data?.nome || d.id;
         });
         setMapaDeNomes(nomes);
 
-        const resultado: Record<string, Rodada[]> = {};
-        const chavesUnicas = new Set<string>();
-
+        // 3) Lista de turmas (empresas). Se não houver, tenta extrair de times.codigoTurma
         const empresasSnap = await getDocs(collection(db, "empresas"));
-        const codigosTurma = empresasSnap.docs.map(doc => doc.id);
-
-        const processarRodada = (codigo: string, data: Rodada) => {
-          const chave = `${codigo}_${data.timeId}_${data.timestamp?.seconds || ""}`;
-          if (!chavesUnicas.has(chave) && (!data.status || data.status === "✅")) {
-            chavesUnicas.add(chave);
-            if (!resultado[codigo]) resultado[codigo] = [];
-            resultado[codigo].push(data);
-          }
-        };
-
-        for (const codigoTurma of codigosTurma) {
-          const rodadaRef = collection(db, "rodadas", codigoTurma, `rodada${rodadaSelecionada}`);
-          const rodadaSnap = await getDocs(rodadaRef);
-          rodadaSnap.docs.forEach(doc => {
-            const data = doc.data() as Rodada;
-            processarRodada(codigoTurma, data);
+        let turmas = empresasSnap.docs.map((d) => d.id);
+        if (turmas.length === 0) {
+          const codigos = new Set<string>();
+          timesSnap.docs.forEach((d) => {
+            const ct = (d.data() as any)?.codigoTurma;
+            if (ct) codigos.add(ct);
           });
+          turmas = Array.from(codigos);
         }
 
-        const rodadasFlatSnap = await getDocs(collection(db, "rodadas"));
-        rodadasFlatSnap.docs.forEach(doc => {
-          const id = doc.id;
-          const match = id.match(new RegExp(`^(\\d{6})_rodada${rodadaSelecionada}_`));
-          if (match) {
-            const codigo = match[1];
-            const data = doc.data() as Rodada;
-            processarRodada(codigo, data);
-          }
-        });
+        // 4) Ler documentos da coleção da rodada (sua estrutura atual)
+        //    Caminho: rodadas/{turma}/rodada{N}  ← "rodada{N}" é COLEÇÃO
+        const resultadoPorTurma: Record<string, Rodada[]> = {};
+        for (const codigoTurma of turmas) {
+          const colecao = collection(
+            db,
+            "rodadas",
+            codigoTurma,
+            `rodada${rodadaSelecionada}`
+          );
+          const snap = await getDocs(colecao);
+          const arr: Rodada[] = [];
+          snap.docs.forEach((dDoc) => {
+            const data = dDoc.data() as Rodada;
+            // opcional: filtrar apenas oficiais, se você marcar algo no fechamento
+            // if (data.status === "✅") { arr.push(data); }
+            arr.push(data);
+          });
+          resultadoPorTurma[codigoTurma] = arr;
+        }
+        setResumoTurmas(resultadoPorTurma);
 
-        const decisoesSnap = await getDocs(collection(db, "decisoes"));
-        decisoesSnap.docs.forEach(doc => {
-          const id = doc.id;
-          const match = id.match(new RegExp(`^(\\d{6})_rodada${rodadaSelecionada}_`));
-          if (match) {
-            const codigo = match[1];
-            const data = doc.data() as Rodada;
-            processarRodada(codigo, data);
-          }
-        });
-
-        setResumoTurmas(resultado);
-
-        // 🎯 Ranking da rodada atual
+        // 5) Ranking da rodada atual (agrega por time across turmas)
         const timesResumo: Record<string, TimeResumo> = {};
-        Object.values(resultado).flat().forEach(r => {
-          const nome = nomes[r.timeId] || r.timeId;
-          if (!timesResumo[r.timeId]) {
-            timesResumo[r.timeId] = {
-              nome,
-              lucroTotal: 0,
-              satisfacaoMedia: 0,
-              caixaFinal: r.caixaFinal ?? 0,
-              scoreEPES: 0,
-            };
-          }
-          timesResumo[r.timeId].lucroTotal += r.lucro ?? 0;
-          timesResumo[r.timeId].satisfacaoMedia += r.satisfacao ?? 0;
-        });
+        Object.values(resultadoPorTurma)
+          .flat()
+          .forEach((r) => {
+            if (!r?.timeId) return;
+            const nome = nomes[r.timeId] || r.timeId;
+            if (!timesResumo[r.timeId]) {
+              timesResumo[r.timeId] = {
+                nome,
+                lucroTotal: 0,
+                satisfacaoMedia: 0,
+                caixaFinal: 0,
+                scoreEPES: 0,
+              };
+            }
+            timesResumo[r.timeId].lucroTotal += r.lucro ?? 0;
+            timesResumo[r.timeId].satisfacaoMedia += r.satisfacao ?? 0;
+            if (typeof r.caixaFinal === "number") {
+              timesResumo[r.timeId].caixaFinal = r.caixaFinal;
+            }
+          });
 
-        const rankingRodada = Object.values(timesResumo).map(t => {
-          const score =
-            t.caixaFinal * 0.4 +
-            t.lucroTotal * 0.3 +
-            t.satisfacaoMedia * 0.3;
-          return { ...t, scoreEPES: score };
-        });
-
-        rankingRodada.sort((a, b) => b.scoreEPES - a.scoreEPES);
+        const rankingRodada = Object.values(timesResumo)
+          .map((t) => {
+            const score =
+              t.caixaFinal * 0.4 + t.lucroTotal * 0.3 + t.satisfacaoMedia * 0.3;
+            return { ...t, scoreEPES: score };
+          })
+          .sort((a, b) => b.scoreEPES - a.scoreEPES);
         setRanking(rankingRodada);
 
-        // 🏁 Ranking acumulado global (todas as rodadas)
-        const todasRodadas: Rodada[] = [];
+        // 6) Ranking global (todas as rodadas/turmas) usando a MESMA estrutura atual
+        const aggGlobal: Record<
+          string,
+          {
+            nome: string;
+            lucroTotal: number;
+            satisfacaoSoma: number;
+            rodadas: number;
+            caixaFinal: number;
+            scoreEPES: number;
+          }
+        > = {};
 
-try {
-  const todasRodadasSnap = await getDocs(collection(db, "rodadas"));
-  todasRodadasSnap.docs.forEach(doc => {
-    const id = doc.id;
-    const match = id.match(/^\d{6}_rodada\d+_/); // garante que é um documento de rodada
-    if (match) {
-      const data = doc.data() as Rodada;
-      if (data.status === "✅") {
-        todasRodadas.push(data);
-      }
-    }
-  });
-} catch (error) {
-  console.warn("⚠️ Não foi possível ler documentos diretos da coleção 'rodadas'.", error);
-}
+        for (const codigoTurma of turmas) {
+          for (let r = 1; r <= rodadaMaxima; r++) {
+            const colecao = collection(db, "rodadas", codigoTurma, `rodada${r}`);
+            const resSnap = await getDocs(colecao);
+            resSnap.docs.forEach((dDoc) => {
+              const data = dDoc.data() as Rodada;
+              if (!data?.timeId) return;
+              const nome = nomes[data.timeId] || data.timeId;
+              if (!aggGlobal[data.timeId]) {
+                aggGlobal[data.timeId] = {
+                  nome,
+                  lucroTotal: 0,
+                  satisfacaoSoma: 0,
+                  rodadas: 0,
+                  caixaFinal: 0,
+                  scoreEPES: 0,
+                };
+              }
+              aggGlobal[data.timeId].lucroTotal += data.lucro ?? 0;
+              aggGlobal[data.timeId].satisfacaoSoma += data.satisfacao ?? 0;
+              aggGlobal[data.timeId].rodadas += 1;
+              if (typeof data.caixaFinal === "number") {
+                aggGlobal[data.timeId].caixaFinal = data.caixaFinal;
+              }
+            });
+          }
+        }
 
-
-
-        const resumoGlobal: Record<string, TimeResumo & { rodadas: number }> = {};
-todasRodadas.forEach(r => {
-  const nome = nomes[r.timeId] || r.timeId;
-  if (!resumoGlobal[r.timeId]) {
-    resumoGlobal[r.timeId] = {
-      nome,
-      lucroTotal: 0,
-      satisfacaoMedia: 0,
-      caixaFinal: r.caixaFinal ?? 0,
-      scoreEPES: 0,
-      rodadas: 0, // novo campo
-    };
-  }
-  resumoGlobal[r.timeId].lucroTotal += r.lucro ?? 0;
-  resumoGlobal[r.timeId].satisfacaoMedia += r.satisfacao ?? 0;
-  resumoGlobal[r.timeId].rodadas += 1;
-});
-
-
-        const rankingGlobal = Object.values(resumoGlobal).map(t => {
-  const satisfacaoMediaCorrigida = t.rodadas > 0 ? t.satisfacaoMedia / t.rodadas : 0;
-  const score =
-    t.caixaFinal * 0.4 +
-    t.lucroTotal * 0.3 +
-    satisfacaoMediaCorrigida * 0.3;
-  return {
-    ...t,
-    satisfacaoMedia: satisfacaoMediaCorrigida,
-    scoreEPES: score,
-  };
-});
-
-
-        rankingGlobal.sort((a, b) => b.scoreEPES - a.scoreEPES);
-        setRankingFinalGlobal(rankingGlobal);
-
-      } catch (error) {
-        console.error("Erro ao buscar decisões:", error);
-        setErro("❌ Não foi possível carregar os dados.");
+        const rankFinal = Object.values(aggGlobal)
+          .map((t) => {
+            const satisfacaoMedia =
+              t.rodadas > 0 ? t.satisfacaoSoma / t.rodadas : 0;
+            const score =
+              t.caixaFinal * 0.4 +
+              t.lucroTotal * 0.3 +
+              satisfacaoMedia * 0.3;
+            return {
+              nome: t.nome,
+              lucroTotal: t.lucroTotal,
+              satisfacaoMedia,
+              caixaFinal: t.caixaFinal,
+              scoreEPES: score,
+            };
+          })
+          .sort((a, b) => b.scoreEPES - a.scoreEPES);
+        setRankingFinalGlobal(rankFinal);
+      } catch (e: any) {
+        console.error("Erro ao buscar resultados oficiais:", e);
+        const msg = e?.message || e?.code || JSON.stringify(e);
+        setErro(`❌ Não foi possível carregar os dados: ${msg}`);
+        setResumoTurmas({});
+        setRanking([]);
+        setRankingFinalGlobal([]);
       } finally {
         setCarregando(false);
       }
     };
 
     fetchResumoGlobal();
-  }, [rodadaSelecionada]);
+  }, [rodadaSelecionada, rodadaMaxima]);
+
   return (
     <div className="page-container">
       <h2>📊 Relatório Global de Todas as Turmas</h2>
@@ -216,9 +236,9 @@ todasRodadas.forEach(r => {
         <select
           id="rodadaSelect"
           value={rodadaSelecionada}
-          onChange={e => setRodadaSelecionada(Number(e.target.value))}
+          onChange={(e) => setRodadaSelecionada(Number(e.target.value))}
         >
-          {Array.from({ length: rodadaMaxima }, (_, i) => i + 1).map(num => (
+          {Array.from({ length: rodadaMaxima }, (_, i) => i + 1).map((num) => (
             <option key={num} value={num}>
               Rodada {num}
             </option>
@@ -229,7 +249,7 @@ todasRodadas.forEach(r => {
       {erro && <p style={{ padding: "2rem", color: "red" }}>{erro}</p>}
       {carregando && <p style={{ padding: "2rem" }}>🔄 Carregando dados...</p>}
 
-      {!carregando && ranking.length > 0 && (
+      {!carregando && !erro && ranking.length > 0 && (
         <>
           <h3>🏆 Ranking Geral dos Times — Rodada {rodadaSelecionada}</h3>
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "40px" }}>
@@ -259,7 +279,7 @@ todasRodadas.forEach(r => {
         </>
       )}
 
-      {!carregando && rodadaSelecionada === rodadaMaxima && rankingFinalGlobal.length > 0 && (
+      {!carregando && !erro && rodadaSelecionada === rodadaMaxima && rankingFinalGlobal.length > 0 && (
         <>
           <h3>🏁 Ranking Final — Vencedores após todas as rodadas</h3>
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "40px" }}>
@@ -290,11 +310,12 @@ todasRodadas.forEach(r => {
       )}
 
       {!carregando &&
+        !erro &&
         Object.entries(resumoTurmas).map(([turma, rodadas]) => (
           <div key={turma} style={{ marginBottom: "3rem" }}>
             <h3>📘 Turma: {turma}</h3>
             {rodadas.length === 0 ? (
-              <p>📭 Nenhuma decisão registrada.</p>
+              <p>📭 Nenhum resultado registrado nesta rodada.</p>
             ) : (
               <>
                 <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px" }}>
@@ -327,7 +348,7 @@ todasRodadas.forEach(r => {
                           textAlign: "center",
                         }}
                       >
-                        <td>{index + 1}</td>
+                        <td>{rodadaSelecionada}</td>
                         <td>{mapaDeNomes[r.timeId] || r.timeId}</td>
                         <td>{r.ea ?? "—"}</td>
                         <td>{r.demanda ?? "—"}</td>
@@ -340,7 +361,7 @@ todasRodadas.forEach(r => {
                         <td>{r.reinvestimento != null ? `R$ ${r.reinvestimento.toFixed(2)}` : "—"}</td>
                         <td>{r.caixaFinal != null ? `R$ ${r.caixaFinal.toFixed(2)}` : "—"}</td>
                         <td>{r.satisfacao != null ? `${r.satisfacao.toFixed(1)}%` : "—"}</td>
-                        <td>{r.atraso ? "⚠️ Atraso" : "✅"}</td>
+                        <td>{r.atraso ? "⚠️ Atraso" : (r.status || "✅")}</td>
                       </tr>
                     ))}
                   </tbody>

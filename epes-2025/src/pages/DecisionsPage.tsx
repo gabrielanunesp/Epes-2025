@@ -1,3 +1,4 @@
+// src/pages/DecisionPage.tsx
 import React, { useEffect, useState } from "react";
 import { db, auth } from "../services/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -16,27 +17,28 @@ export default function DecisionPage() {
 
   const codigoTurma = localStorage.getItem("codigoTurma") ?? "";
 
-useEffect(() => {
-  const unsubscribe = auth.onAuthStateChanged(async (user) => {
-    if (user?.uid) {
-      setUid(user.uid);
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user?.uid) {
+        setUid(user.uid);
 
-      if (!codigoTurma) return;
+        if (!codigoTurma) return;
 
+        const timeRef = doc(db, "times", codigoTurma);
+        const timeSnap = await getDoc(timeRef);
+        const timeData = timeSnap.data();
 
-      const timeRef = doc(db, "times", codigoTurma);
-      const timeSnap = await getDoc(timeRef);
-      const timeData = timeSnap.data();
-
-      if (timeData?.criadoPor === user.uid) {
-        setIsCapitao(true);
+        if (timeData?.criadoPor === user.uid) {
+          setIsCapitao(true);
+        }
       }
-    }
-  });
+    });
 
-  return () => unsubscribe();
-}, []);
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // estados dos selects (mantidos como no seu código)
   const [produtoIndex, setProdutoIndex] = useState(0);
   const [marketingIndex, setMarketingIndex] = useState(0);
   const [capacidadeIndex, setCapacidadeIndex] = useState(1);
@@ -50,9 +52,11 @@ useEffect(() => {
   const equipeOpcoes = ["Enxuto", "Balanceado", "Reforçado", "Especializado"];
   const beneficioOpcoes = ["Cupom", "Brinde", "Frete grátis", "Nenhum"];
 
+  // preço e orçamento (mantidos como no seu código)
   const preco = 100;
   const limiteInvestimento = 500000;
 
+  // efeitos (mantidos como no seu código)
   const qualidade = [10, 20, 35, 50][produtoIndex];
   const marketingBonus = [8, 15, 25, 35][marketingIndex];
   const capacidade = [500, 1000, 2000, 3000][capacidadeIndex];
@@ -74,35 +78,34 @@ useEffect(() => {
   const formatar = (valor: number) =>
     new Intl.NumberFormat("pt-BR").format(valor);
 
+  // carrega empresa (público alvo/membros) e config global (rodada)
   useEffect(() => {
     const carregarDados = async () => {
-      const empresaRef = doc(db, "empresas", codigoTurma);
-      const geralRef = doc(db, "configuracoes", "geral");
+      try {
+        if (!codigoTurma) return;
 
-      const [empresaSnap, geralSnap] = await Promise.all([
-        getDoc(empresaRef),
-        getDoc(geralRef),
-      ]);
+        const [empresaSnap, geralSnap] = await Promise.all([
+          getDoc(doc(db, "empresas", codigoTurma)),
+          getDoc(doc(db, "configuracoes", "geral")),
+        ]);
 
-      const empresaData = empresaSnap.data();
-      const geralData = geralSnap.data();
+        const empresaData = empresaSnap.data();
+        const geralData = geralSnap.data();
 
-      if (empresaData?.publicoAlvo) {
-        setPublicoAlvo(empresaData.publicoAlvo);
+        if (empresaData?.publicoAlvo) setPublicoAlvo(empresaData.publicoAlvo);
+        if (empresaData?.membros) setMembros(empresaData.membros);
+
+        setRodadaAtiva(geralData?.rodadaAtiva === true);
+        setRodadaAtual(geralData?.rodadaAtual ?? 1);
+      } catch (e) {
+        console.warn("⚠️ Erro ao carregar dados iniciais:", e);
       }
-
-      if (empresaData?.membros) {
-        setMembros(empresaData.membros);
-      }
-
-      setRodadaAtiva(geralData?.rodadaAtiva === true);
-      setRodadaAtual(geralData?.rodadaAtual ?? 1);
-
     };
 
     carregarDados();
   }, [codigoTurma]);
 
+  // cronômetro (quando rodada está ativa)
   useEffect(() => {
     if (!rodadaAtiva) return;
 
@@ -117,12 +120,12 @@ useEffect(() => {
       setTempoRestante(`${horas}h ${minutos}m`);
     };
 
-    atualizarTempo(); // chama imediatamente
-
+    atualizarTempo();
     const interval = setInterval(atualizarTempo, 60000);
     return () => clearInterval(interval);
   }, [rodadaAtiva]);
 
+  // cálculo prévio (preview na tela)
   const resultado = calcularRodada({
     preco,
     qualidade,
@@ -134,86 +137,103 @@ useEffect(() => {
     caixaAcumulado: 0,
   });
 
+  // ✅ salvar decisão — corrigido!
   const salvarDecisao = async () => {
-    const timeId = localStorage.getItem("idDoTime");
+    try {
+      const timeId = localStorage.getItem("idDoTime");
 
+      // lê rodadaAtual do backend para evitar divergência
       const geralRef = doc(db, "configuracoes", "geral");
-  const geralSnap = await getDoc(geralRef);
-  const rodadaAtual = geralSnap.data()?.rodadaAtual ?? 1;
+      const geralSnap = await getDoc(geralRef);
+      const rodadaAtualOficial = geralSnap.data()?.rodadaAtual ?? 1;
+      const rodadaAtivaOficial = geralSnap.data()?.rodadaAtiva === true;
 
+      if (!isCapitao) {
+        setMensagemCapitao("🔒 Apenas o capitão pode enviar a decisão final.");
+        return;
+      }
+      if (!rodadaAtivaOficial) {
+        setMensagemCapitao("⛔ A rodada está fechada. Aguarde o responsável iniciar a próxima rodada.");
+        return;
+      }
+      if (passouDoLimite) {
+        setMensagemCapitao("❌ Você ultrapassou o limite de investimento. Ajuste suas decisões.");
+        return;
+      }
+      if (!uid || !codigoTurma || !timeId || uid.trim() === "" || timeId.trim() === "") {
+        setMensagemCapitao("⚠️ Informações incompletas. Verifique login e se você escolheu um time.");
+        return;
+      }
 
-    if (!isCapitao) {
-      setMensagemCapitao("🔒 Apenas o capitão pode enviar a decisão final.");
-      return;
+      const dados = {
+        produto: produtoOpcoes[produtoIndex],
+        marketing: marketingOpcoes[marketingIndex],
+        capacidade,
+        equipe: equipeOpcoes[equipeIndex],
+        marca: marcaProtegida,
+        beneficio: beneficioOpcoes[beneficioIndex],
+        preco,
+        totalUsado,
+        caixaRestante,
+        publicoAlvo,
+        ea: resultado.ea ?? 0,
+        share: resultado.share ?? 0,
+        demanda: resultado.demanda ?? 0,
+        receita: resultado.receita ?? 0,
+        custo: resultado.custo ?? 0,
+        lucro: resultado.lucro ?? 0,
+        reinvestimento: resultado.reinvestimento ?? 0,
+        caixaFinal: resultado.caixaFinal ?? 0,
+        satisfacao: resultado.satisfacao ?? 0,
+        timestamp: new Date(),
+        codigoTurma,
+        uid,
+        timeId,
+      };
+
+      // 1) log da decisão (coleção plana)
+      await setDoc(
+        doc(db, "decisoes", `${codigoTurma}_rodada${rodadaAtualOficial}_${uid}`),
+        dados
+      );
+
+      // 2) subcoleção por turma/rodada (NADA de /decisoes/ aqui)
+      await setDoc(
+        doc(db, "rodadas", codigoTurma, `rodada${rodadaAtualOficial}`, uid),
+        {
+          timeId,
+          ea: resultado.ea,
+          demanda: resultado.demanda,
+          receita: resultado.receita,
+          custo: resultado.custo,
+          lucro: resultado.lucro,
+          reinvestimento: resultado.reinvestimento,
+          caixaFinal: resultado.caixaFinal,
+          satisfacao: resultado.satisfacao,
+          atraso: false,
+          status: "✅",
+          timestamp: new Date(),
+        }
+      );
+
+      // 3) espelho plano em "rodadas"
+      await setDoc(
+        doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtualOficial}_${uid}`),
+        { ...dados, status: "✅" }
+      );
+
+      setMensagemCapitao("✅ Decisão salva com sucesso!");
+    } catch (e: any) {
+      console.error("Erro ao salvar decisão:", e);
+      setMensagemCapitao("❌ Erro ao salvar decisão. Veja o console para detalhes.");
     }
-
-    if (!rodadaAtiva || passouDoLimite) return;
-
-    if (!uid || !codigoTurma || !timeId || uid.trim() === "" || timeId.trim() === "") {
-      setMensagemCapitao("⚠️ Informações incompletas. Verifique login e se você escolheu um time.");
-      return;
-    }
-
-    const dados = {
-  produto: produtoOpcoes[produtoIndex],
-  marketing: marketingOpcoes[marketingIndex],
-  capacidade,
-  equipe: equipeOpcoes[equipeIndex],
-  marca: marcaProtegida,
-  beneficio: beneficioOpcoes[beneficioIndex],
-  preco,
-  totalUsado,
-  caixaRestante,
-  publicoAlvo,
-  ea: resultado.ea ?? 0,
-  share: resultado.share ?? 0,
-  demanda: resultado.demanda ?? 0,
-  receita: resultado.receita ?? 0,
-  custo: resultado.custo ?? 0,           // ✅ novo campo
-  lucro: resultado.lucro ?? 0,
-  reinvestimento: resultado.reinvestimento ?? 0, // ✅ novo campo
-  caixaFinal: resultado.caixaFinal ?? 0,
-  satisfacao: resultado.satisfacao ?? 0, // ✅ novo campo
-  timestamp: new Date(),
-  codigoTurma,
-  uid,
-  timeId,
-};
-
-
-    await setDoc(doc(db, "decisoes", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), dados);
-    await setDoc(doc(db, "rodadas", codigoTurma, `rodada${rodadaAtual}`, uid), {
-
-  timeId: timeId,
-  ea: resultado.ea,
-  demanda: resultado.demanda,
-  receita: resultado.receita,
-  custo: resultado.custo,
-  lucro: resultado.lucro,
-  reinvestimento: resultado.reinvestimento,
-  caixaFinal: resultado.caixaFinal,
-  satisfacao: resultado.satisfacao,
-  atraso: false,
-  status: "✅",
-  timestamp: new Date(),
-});
-
-await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
-
-  ...dados,
-  status: "✅"
-});
-
-
-
-    setMensagemCapitao("✅ Decisão salva com sucesso!");
-   
-
   };
+
   return (
     <div className="decision-container">
       <h2>📊 Decisões Estratégicas</h2>
 
+      {/* Seus blocos de decisão (mantidos) */}
       <div className="decision-block">
         <label>🔬 Produto & P&D:</label>
         <select value={produtoIndex} onChange={(e) => setProdutoIndex(Number(e.target.value))}>
@@ -271,72 +291,69 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
       <p><strong>🧮 Caixa restante:</strong> R$ {formatar(caixaRestante)}</p>
 
       <h3 style={{ marginTop: "2rem" }}>📋 Resumo das Decisões</h3>
-<div className="indicators">
-  <p>
-    📈 <span
-      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("Efeito de atratividade: representa o quanto sua oferta é atrativa para o público-alvo.")}
-    >
-      EA
-    </span>: {resultado.ea}
-  </p>
+      <div className="indicators">
+        <p>
+          📈 <span
+            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+            onClick={() => window.alert("Efeito de atratividade: representa o quanto sua oferta é atrativa para o público-alvo.")}
+          >
+            EA
+          </span>: {resultado.ea}
+        </p>
 
-  {rodadaAtual > 1 ? (
-    <p>
-      📊 <span
-        style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-        onClick={() => window.alert("Share: fatia de mercado conquistada pela sua empresa nesta rodada.")}
-      >
-        Share
-      </span>: {resultado.share}%
-    </p>
-  ) : (
-    <p className="indicator-note">📊 Share será exibido a partir da segunda rodada.</p>
-  )}
+        {rodadaAtual > 1 ? (
+          <p>
+            📊 <span
+              style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+              onClick={() => window.alert("Share: fatia de mercado conquistada pela sua empresa nesta rodada.")}
+            >
+              Share
+            </span>: {resultado.share}%
+          </p>
+        ) : (
+          <p className="indicator-note">📊 Share será exibido a partir da segunda rodada.</p>
+        )}
 
-  <p>
-    🛍️ <span
-      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("Quantidade estimada de consumidores interessados.")}
-    >
-      Demanda
-    </span>: {formatar(resultado.demanda)}
-  </p>
+        <p>
+          🛍️ <span
+            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+            onClick={() => window.alert("Quantidade estimada de consumidores interessados.")}
+          >
+            Demanda
+          </span>: {formatar(resultado.demanda)}
+        </p>
 
-  <p>
-    💰 <span
-      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("Valor máximo que poderá obter com as vendas realizadas nesta rodada.")}
-    >
-      Receita
-    </span>: R$ {formatar(resultado.receita)}
-  </p>
+        <p>
+          💰 <span
+            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+            onClick={() => window.alert("Valor máximo que poderá obter com as vendas realizadas nesta rodada.")}
+          >
+            Receita
+          </span>: R$ {formatar(resultado.receita)}
+        </p>
 
-  <p>
-    📉 <span
-      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("Potencial de lucro para essa rodada.")}
-    >
-      Lucro
-    </span>: R$ {formatar(resultado.lucro)}
-  </p>
+        <p>
+          📉 <span
+            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+            onClick={() => window.alert("Potencial de lucro para essa rodada.")}
+          >
+            Lucro
+          </span>: R$ {formatar(resultado.lucro)}
+        </p>
 
-  <p>
-    🏦 <span
-      style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
-      onClick={() => window.alert("Potencial de saldo restante após os custos e reinvestimento.")}
-    >
-      Caixa Final
-    </span>: R$ {formatar(resultado.caixaFinal)}
-  </p>
-</div>
+        <p>
+          🏦 <span
+            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+            onClick={() => window.alert("Potencial de saldo restante após os custos e reinvestimento.")}
+          >
+            Caixa Final
+          </span>: R$ {formatar(resultado.caixaFinal)}
+        </p>
+      </div>
 
-<p style={{ marginTop: "1rem", fontStyle: "italic" }}>
-  💼 Total do caixa mais investimento: R$ 500.000 disponíveis nesta rodada.
-</p>
-
-
-
+      <p style={{ marginTop: "1rem", fontStyle: "italic" }}>
+        💼 Total do caixa mais investimento: R$ 500.000 disponíveis nesta rodada.
+      </p>
 
       {!rodadaAtiva && (
         <div className="alert red">⛔ A rodada está fechada. Aguarde o responsável iniciar a próxima rodada.</div>
@@ -364,14 +381,3 @@ await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtual}_${uid}`), {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

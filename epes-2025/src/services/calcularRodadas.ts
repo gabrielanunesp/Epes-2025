@@ -10,16 +10,39 @@ export interface ResultadoRodada {
   backlog: boolean;
   satisfacao: number;
   evento?: string;
-  share?: number;
+  share?: number;           // % para UI (compatível com seu código)
+  // novo, útil para cálculos:
+  shareFraction?: number;   // 0..1
 }
 
 export function calcularCVU(qualidade: number, eficiencia: number): number {
+  // sua fórmula mantida, mas use eficiência coerente (0..100)
   const base = 20;
   const alpha = 0.2;
   const beta = 0.1;
-
   const cvu = base + alpha * qualidade - beta * eficiencia;
   return Math.max(0, parseFloat(cvu.toFixed(2)));
+}
+
+// ===== helpers locais =====
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+// score de preço relativo ao preço de referência (P*)
+function priceScore(p: number, refPrice: number) {
+  const denom = 0.5 * refPrice; // deslocar ±50% leva score ~0
+  return clamp(1 - (p - refPrice) / denom, 0, 1); // 0..1
+}
+
+// transforma “marketingBonus” em um score suave (0..1)
+function marketingScoreFromBonus(bonusPct: number, boost: number) {
+  const spend = Math.max(0, bonusPct) * 1000; // compatível com seu custo
+  const raw = Math.log(1 + spend) / 10;
+  return clamp((1 + boost) * raw, 0, 1);
+}
+
+// sigmóide: 0..1, controla “propensão de compra” via EA
+function sigmoid(x: number, x0: number, k: number) {
+  return 1 / (1 + Math.exp(-(x - x0) / k));
 }
 
 export function calcularRodada(d: {
@@ -31,9 +54,9 @@ export function calcularRodada(d: {
   capacidade: number;
   publicoAlvo: string;
   caixaAcumulado: number;
-  precoMedioMercado?: number;
+  precoMedioMercado?: number;  // P*
   marketSize?: number;
-  eaDosOutrosTimes?: number[];
+  eaDosOutrosTimes?: number[]; // ignorado neste modo “vs mercado”
 }): ResultadoRodada {
   const {
     preco,
@@ -46,9 +69,9 @@ export function calcularRodada(d: {
     caixaAcumulado,
     precoMedioMercado = 100,
     marketSize = 10000,
-    eaDosOutrosTimes = [],
   } = d;
 
+  // ===== mapas do seu código (mantidos) =====
   const qualidadeMultiplicador: Record<string, number> = {
     "Jovens (15–24 anos)": 0.8,
     "Adultos (25–40 anos)": 1.0,
@@ -88,68 +111,72 @@ export function calcularRodada(d: {
     "Frete grátis|Sêniores (40+)": 5,
   };
 
-  const modificadorEA = 1.0;
-  const epsilon = elasticidadePreco[publicoAlvo] ?? 1.0;
+  // ===== parâmetros padrão da “temporada” (podem vir do banco depois) =====
+  const refPrice = precoMedioMercado;   // P*
+  const fixedTeamCost = 5000;           // custo fixo por rodada (padrão)
+  const ea50 = 100;                     // EA onde propensão = 0.5
+  const eaK = 30;                       // inclinação da sigmóide
 
-  const precoValido = preco > 0 ? preco : 100;
-  const qualidadeValida = qualidade ?? 0;
-  const marketingValido = marketingBonus ?? 0;
-  const equipeValida = equipeBonus ?? 0;
+  // ===== normalizações =====
+  const publico = (publicoAlvo || "").trim();
+  const eps = elasticidadePreco[publico] ?? 1.0;
 
+  const p = preco > 0 ? preco : refPrice;
+  const q = qualidade ?? 0;
+  const mktBonus = marketingBonus ?? 0;
+  const eqBonus = equipeBonus ?? 0;
+
+  // tipo de benefício + bônus extra por público
   const beneficioTipo =
     beneficioBonus === 10 ? "Cupom" :
     beneficioBonus === 15 ? "Brinde" :
     beneficioBonus === 20 ? "Frete grátis" : "Nenhum";
+  const bonusExtra = beneficioBonusExtra[`${beneficioTipo}|${publico}`] ?? 0;
+  const beneficio = beneficioBonus + bonusExtra;
 
-  const publicoValido = publicoAlvo.trim();
-  const chaveBeneficio = `${beneficioTipo}|${publicoValido}`;
-  const bonusExtra = beneficioBonusExtra[chaveBeneficio] ?? 0;
-  const beneficioValido = beneficioBonus + bonusExtra;
+  // ===== EA (linear) =====
+  const pScore = priceScore(p, refPrice); // 0..1
+  const mScore = marketingScoreFromBonus(mktBonus, (marketingMultiplicador[publico] ?? 1) - 1); // 0..1
 
-  const eaBase =
-    (100 - precoValido) +
-    qualidadeValida * (qualidadeMultiplicador[publicoValido] ?? 1) +
-    marketingValido * (marketingMultiplicador[publicoValido] ?? 1) +
-    equipeValida * (equipeMultiplicador[publicoValido] ?? 1) +
-    beneficioValido;
+  const eaLinear =
+    (100 * pScore) +                                   // preço relativo (0..100)
+    q * (qualidadeMultiplicador[publico] ?? 1) +       // qualidade ponderada
+    (mScore * 100) +                                   // marketing (0..100)
+    eqBonus * (equipeMultiplicador[publico] ?? 1) +    // equipe ponderada
+    beneficio;                                         // benefício
 
-  let eaAjustado = eaBase * modificadorEA;
+  // ===== Procura “vs mercado” =====
+  const propensao = sigmoid(eaLinear, ea50, eaK);      // 0..1
+  const fatorPreco = Math.pow(refPrice / p, eps);      // elasticidade
+  const demandaBruta = marketSize * propensao * fatorPreco;
 
-  const todosEA = [...eaDosOutrosTimes, eaAjustado];
-  const somaExp = todosEA.reduce((acc, ea) => acc + Math.exp(ea || 0), 0);
-  const share = somaExp > 0 ? Math.exp(eaAjustado) / somaExp : 0;
-
-  const fatorPreco = Math.pow(precoMedioMercado / precoValido, epsilon);
-  const demandaBruta = marketSize * share * fatorPreco;
-
+  // ===== Vendas & backlog =====
   const vendas = Math.min(demandaBruta, capacidade);
   const houveBacklog = demandaBruta > capacidade;
 
-  if (houveBacklog) {
-    if (["Jovens (15–24 anos)", "Classe C/D"].includes(publicoValido)) {
-      eaAjustado -= 15;
-    } else if (["Sêniores (40+)", "Classe A/B"].includes(publicoValido)) {
-      eaAjustado -= 5;
-    }
-  }
+  // ===== Eficiência coerente (0..100) =====
+  const eficiencia = Math.min(100, 50 + eqBonus);      // proxy simples: base 50 + bônus de equipe
+  const cvu = calcularCVU(q, eficiencia);
 
-  const receita = vendas * precoValido;
-  const eficiencia = capacidade / 100;
-  const cvu = calcularCVU(qualidadeValida, eficiencia);
+  // ===== Custos =====
   const custoVariavel = vendas * cvu;
+  const custoMarketing = mktBonus * 1000;
+  const custoEquipe = eqBonus * 1000;
+  const custoBeneficio = beneficio * 1000;
+  const custoTotal = custoVariavel + custoMarketing + custoEquipe + custoBeneficio + fixedTeamCost;
 
-  const custoMarketing = marketingValido * 1000;
-  const custoEquipe = equipeValida * 1000;
-  const custoBeneficio = beneficioValido * 1000;
-
-  const custoTotal = custoVariavel + custoMarketing + custoEquipe + custoBeneficio;
-
+  // ===== Resultado financeiro =====
+  const receita = vendas * p;
   const lucroBruto = receita - custoTotal;
   const reinvestimento = Math.max(0, lucroBruto) * 0.2;
   const caixaFinal = caixaAcumulado + Math.max(0, lucroBruto) * 0.8;
 
+  // ===== Share “potencial” (fração do mercado) =====
+  const shareFraction = demandaBruta / marketSize;     // 0..>1 (normalmente 0..1)
+  const sharePct = parseFloat((clamp(shareFraction, 0, 1) * 100).toFixed(2));
+
   return {
-    ea: parseFloat(eaAjustado.toFixed(2)),
+    ea: parseFloat(eaLinear.toFixed(2)),
     demanda: Math.round(demandaBruta),
     receita: parseFloat(receita.toFixed(2)),
     custo: parseFloat(custoTotal.toFixed(2)),
@@ -158,8 +185,10 @@ export function calcularRodada(d: {
     caixaFinal: parseFloat(caixaFinal.toFixed(2)),
     cvu: parseFloat(cvu.toFixed(2)),
     backlog: houveBacklog,
-    satisfacao: Math.min(100, eaAjustado / 2),
-    evento: undefined,
-    share: parseFloat((share * 100).toFixed(2)),
+    satisfacao: Math.min(100, eaLinear / 2),
+    // ⚠️ aplicar a penalidade de backlog NA PRÓXIMA RODADA (no server)
+    evento: houveBacklog ? "PENALIDADE_NEXT" : undefined,
+    share: sharePct,                // em % para UI (compatível)
+    shareFraction                   // fração 0..1 (novo)
   };
 }
