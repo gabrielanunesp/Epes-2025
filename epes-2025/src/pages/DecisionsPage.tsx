@@ -17,6 +17,9 @@ export default function DecisionPage() {
   const [uid, setUid] = useState("");
   const [isCapitao, setIsCapitao] = useState(false);
 
+  // 👇 NOVO: marketSize controlado pelo Firestore (padrão 10.000 se não existir no doc)
+  const [marketSize, setMarketSize] = useState<number>(10000);
+
   const codigoTurma = localStorage.getItem("codigoTurma") ?? "";
 
   useEffect(() => {
@@ -96,6 +99,13 @@ export default function DecisionPage() {
 
       setRodadaAtiva(geralData?.rodadaAtiva === true);
       setRodadaAtual(geralData?.rodadaAtual ?? 1);
+
+      // 👇 NOVO: carrega marketSize do Firestore (se não existir, usamos 10.000)
+      if (typeof geralData?.marketSize === "number") {
+        setMarketSize(Number(geralData.marketSize));
+      } else {
+        setMarketSize(10000);
+      }
     };
 
     carregarDados();
@@ -117,6 +127,7 @@ export default function DecisionPage() {
     return () => clearInterval(interval);
   }, [rodadaAtiva]);
 
+  // 👇 NOVO: passamos marketSize para o motor de cálculo
   const resultado = calcularRodada({
     preco,
     qualidade,
@@ -126,16 +137,13 @@ export default function DecisionPage() {
     capacidade,
     publicoAlvo,
     caixaAcumulado: 0,
+    marketSize, // <<< usa o valor do Firestore
   });
-
-  // ⚠️ IMPORTANTE: não fazemos checagem prévia de "já enviou".
-  // Só vamos checar na hora do submit, para não assustar o usuário antes do tempo.
 
   const salvarDecisao = async () => {
     try {
       const timeId = localStorage.getItem("idDoTime");
 
-      // rodadaAtual do backend (garante sincronismo)
       const geralRef = doc(db, "configuracoes", "geral");
       const geralSnap = await getDoc(geralRef);
       const rodadaAtualServer = geralSnap.data()?.rodadaAtual ?? 1;
@@ -151,7 +159,6 @@ export default function DecisionPage() {
         return;
       }
 
-      // ✅ Checagem de duplicidade SOMENTE no clique do botão
       const decisaoId = `${codigoTurma}_rodada${rodadaAtualServer}_${uid}`;
       const decisaoRef = doc(db, "decisoes", decisaoId);
       const jaTem = await getDoc(decisaoRef);
@@ -185,12 +192,12 @@ export default function DecisionPage() {
         uid,
         timeId,
         status: "✅",
+        // (opcional) registrar o marketSize usado para auditoria
+        marketSizeUsado: marketSize,
       };
 
-      // grava em "decisoes" (flat)
       await setDoc(decisaoRef, dados);
 
-      // grava também no "sub" da rodada (auditoria por rodada)
       await setDoc(doc(db, "rodadas", codigoTurma, `rodada${rodadaAtualServer}`, uid), {
         timeId,
         ea: resultado.ea,
@@ -204,13 +211,12 @@ export default function DecisionPage() {
         atraso: false,
         status: "✅",
         timestamp: new Date(),
+        marketSizeUsado: marketSize,
       });
 
-      // opcional: snapshot “flat” para consultas simples
       await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtualServer}_${uid}`), dados);
 
       setMensagemCapitao("✅ Decisão salva com sucesso!");
-      // 👉 redireciona para o dashboard após salvar
       setTimeout(() => {
         navigate("/dashboard");
       }, 600);
@@ -223,8 +229,10 @@ export default function DecisionPage() {
   return (
     <div className="decision-container">
       <h2>📊 Decisões Estratégicas</h2>
-
-      {/* Se quiser mostrar a faixa de preço, adicione aqui inputs/labels */}
+      {/* 👇 Opcional: mostrar o tamanho de mercado atual */}
+      <p style={{ marginTop: 4, color: "#666" }}>
+        🧮 Mercado desta rodada: {marketSize.toLocaleString("pt-BR")} consumidores
+      </p>
 
       <div className="decision-block">
         <label>🔬 Produto & P&D:</label>
