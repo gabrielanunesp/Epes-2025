@@ -20,6 +20,7 @@ type Rodada = {
 
 type TimeResumo = {
   nome: string;
+  publicoAlvo?: string;
   lucroTotal: number;
   satisfacaoMedia: number;
   caixaFinal: number;
@@ -29,14 +30,14 @@ type TimeResumo = {
 export default function Informacoes() {
   const [resumoTurmas, setResumoTurmas] = useState<Record<string, Rodada[]>>({});
   const [mapaDeNomes, setMapaDeNomes] = useState<Record<string, string>>({});
+  const [mapaPublico, setMapaPublico] = useState<Record<string, string>>({});
   const [ranking, setRanking] = useState<TimeResumo[]>([]);
-  const [rankingFinalGlobal, setRankingFinalGlobal] = useState<TimeResumo[]>([]);
+  const [rankingFinalGlobal, setRankingFinalGlobal] = useState<TimeResumo[]>([]); // mantém para compatibilidade, sem uso aqui
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
   const [rodadaMaxima, setRodadaMaxima] = useState(10);
 
-  // Carrega parâmetros gerais (rodadaFinal etc.)
   useEffect(() => {
     const buscarRodadaAtual = async () => {
       try {
@@ -45,187 +46,128 @@ export default function Informacoes() {
         const rodadaFinal = geralSnap.data()?.rodadaFinal ?? 10;
         setRodadaMaxima(rodadaFinal);
       } catch (error) {
-        console.error("Erro ao buscar rodada final:", error);
+        console.error("Erro ao buscar rodada atual:", error);
       }
     };
     buscarRodadaAtual();
   }, []);
 
-  // Busca e monta o relatório
   useEffect(() => {
     const fetchResumoGlobal = async () => {
       try {
         setErro(null);
         setCarregando(true);
 
-        // 1) Gate: só libera se a rodada estiver fechada OU o prazo já tiver passado
-        const geralRef = doc(db, "configuracoes", "geral");
-        const geralSnap = await getDoc(geralRef);
-        const geral = geralSnap.data() || {};
-        const ativa = geral?.rodadaAtiva === true;
-        const prazoMs =
-          geral?.prazo?.toMillis ? geral.prazo.toMillis() : null;
-        const agora = Date.now();
-
-        if (ativa && prazoMs && agora < prazoMs) {
-          setErro(
-            "⏳ A rodada está aberta. O relatório libera quando fechar ou quando o prazo expirar."
-          );
-          setResumoTurmas({});
-          setRanking([]);
-          setRankingFinalGlobal([]);
-          setCarregando(false);
-          return;
-        }
-
-        // 2) Mapa de nomes (times)
+        // 1) Carrega times (nomes + ids)
         const nomes: Record<string, string> = {};
         const timesSnap = await getDocs(collection(db, "times"));
-        timesSnap.docs.forEach((d) => {
+        const teamIds = timesSnap.docs.map((d) => {
           const data = d.data() as any;
-          nomes[d.id] = data?.nome || d.id;
+          nomes[d.id] = data.nome || d.id;
+          return d.id as string;
         });
         setMapaDeNomes(nomes);
 
-        // 3) Lista de turmas (empresas). Se não houver, tenta extrair de times.codigoTurma
-        const empresasSnap = await getDocs(collection(db, "empresas"));
-        let turmas = empresasSnap.docs.map((d) => d.id);
-        if (turmas.length === 0) {
-          const codigos = new Set<string>();
-          timesSnap.docs.forEach((d) => {
-            const ct = (d.data() as any)?.codigoTurma;
-            if (ct) codigos.add(ct);
-          });
-          turmas = Array.from(codigos);
+        // 2) Carrega público-alvo por time (empresas/{timeId})
+        const paEntries = await Promise.all(
+          teamIds.map(async (tid) => {
+            try {
+              const empSnap = await getDoc(doc(db, "empresas", tid));
+              return [tid, (empSnap.exists() ? (empSnap.data() as any)?.publicoAlvo : "—") || "—"] as const;
+            } catch {
+              return [tid, "—"] as const;
+            }
+          })
+        );
+        const mapaPA = Object.fromEntries(paEntries) as Record<string, string>;
+        setMapaPublico(mapaPA);
+
+        // 3) Lê RESULTADOS OFICIAIS por time para a rodada selecionada
+        // resultadosOficiais/{timeId}/rodada{N}/oficial
+        const resultado: Record<string, Rodada[]> = {};
+        let totalOficiais = 0;
+
+        for (const tid of teamIds) {
+          try {
+            const oficialRef = doc(
+              db,
+              "resultadosOficiais",
+              tid,
+              `rodada${rodadaSelecionada}`,
+              "oficial"
+            );
+            const oficialSnap = await getDoc(oficialRef);
+            if (oficialSnap.exists()) {
+              const data = oficialSnap.data() as Partial<Rodada>;
+
+              // 🔐 timeId garantido por último (não sobrescreve)
+              const packed: Rodada = {
+                ...(data as Partial<Rodada>),
+                timeId: String(tid),
+              } as Rodada;
+
+              if (!resultado[tid]) resultado[tid] = [];
+              resultado[tid].push(packed);
+              totalOficiais++;
+            }
+          } catch (e) {
+            console.warn(`Sem oficial para time ${tid} na rodada ${rodadaSelecionada}`, e);
+          }
         }
 
-        // 4) Ler documentos da coleção da rodada (sua estrutura atual)
-        //    Caminho: rodadas/{turma}/rodada{N}  ← "rodada{N}" é COLEÇÃO
-        const resultadoPorTurma: Record<string, Rodada[]> = {};
-        for (const codigoTurma of turmas) {
-          const colecao = collection(
-            db,
-            "rodadas",
-            codigoTurma,
-            `rodada${rodadaSelecionada}`
-          );
-          const snap = await getDocs(colecao);
-          const arr: Rodada[] = [];
-          snap.docs.forEach((dDoc) => {
-            const data = dDoc.data() as Rodada;
-            // opcional: filtrar apenas oficiais, se você marcar algo no fechamento
-            // if (data.status === "✅") { arr.push(data); }
-            arr.push(data);
-          });
-          resultadoPorTurma[codigoTurma] = arr;
-        }
-        setResumoTurmas(resultadoPorTurma);
+        setResumoTurmas(resultado);
 
-        // 5) Ranking da rodada atual (agrega por time across turmas)
+        // 4) Ranking da rodada (um oficial por time/rodada)
         const timesResumo: Record<string, TimeResumo> = {};
-        Object.values(resultadoPorTurma)
-          .flat()
-          .forEach((r) => {
-            if (!r?.timeId) return;
-            const nome = nomes[r.timeId] || r.timeId;
-            if (!timesResumo[r.timeId]) {
-              timesResumo[r.timeId] = {
+        Object.entries(resultado).forEach(([tid, arr]) => {
+          arr.forEach((r) => {
+            const nome = nomes[tid] || tid;
+            if (!timesResumo[tid]) {
+              timesResumo[tid] = {
                 nome,
+                publicoAlvo: mapaPA[tid] || "—",
                 lucroTotal: 0,
                 satisfacaoMedia: 0,
-                caixaFinal: 0,
+                caixaFinal: r.caixaFinal ?? 0,
                 scoreEPES: 0,
               };
             }
-            timesResumo[r.timeId].lucroTotal += r.lucro ?? 0;
-            timesResumo[r.timeId].satisfacaoMedia += r.satisfacao ?? 0;
-            if (typeof r.caixaFinal === "number") {
-              timesResumo[r.timeId].caixaFinal = r.caixaFinal;
-            }
+            timesResumo[tid].lucroTotal += r.lucro ?? 0;
+            timesResumo[tid].satisfacaoMedia += r.satisfacao ?? 0;
           });
+        });
 
-        const rankingRodada = Object.values(timesResumo)
-          .map((t) => {
-            const score =
-              t.caixaFinal * 0.4 + t.lucroTotal * 0.3 + t.satisfacaoMedia * 0.3;
-            return { ...t, scoreEPES: score };
-          })
-          .sort((a, b) => b.scoreEPES - a.scoreEPES);
+        const rankingRodada = Object.values(timesResumo).map((t) => {
+          const score =
+            (t.caixaFinal ?? 0) * 0.4 +
+            (t.lucroTotal ?? 0) * 0.3 +
+            (t.satisfacaoMedia ?? 0) * 0.3;
+          return { ...t, scoreEPES: score };
+        });
+
+        rankingRodada.sort((a, b) => b.scoreEPES - a.scoreEPES);
         setRanking(rankingRodada);
 
-        // 6) Ranking global (todas as rodadas/turmas) usando a MESMA estrutura atual
-        const aggGlobal: Record<
-          string,
-          {
-            nome: string;
-            lucroTotal: number;
-            satisfacaoSoma: number;
-            rodadas: number;
-            caixaFinal: number;
-            scoreEPES: number;
-          }
-        > = {};
-
-        for (const codigoTurma of turmas) {
-          for (let r = 1; r <= rodadaMaxima; r++) {
-            const colecao = collection(db, "rodadas", codigoTurma, `rodada${r}`);
-            const resSnap = await getDocs(colecao);
-            resSnap.docs.forEach((dDoc) => {
-              const data = dDoc.data() as Rodada;
-              if (!data?.timeId) return;
-              const nome = nomes[data.timeId] || data.timeId;
-              if (!aggGlobal[data.timeId]) {
-                aggGlobal[data.timeId] = {
-                  nome,
-                  lucroTotal: 0,
-                  satisfacaoSoma: 0,
-                  rodadas: 0,
-                  caixaFinal: 0,
-                  scoreEPES: 0,
-                };
-              }
-              aggGlobal[data.timeId].lucroTotal += data.lucro ?? 0;
-              aggGlobal[data.timeId].satisfacaoSoma += data.satisfacao ?? 0;
-              aggGlobal[data.timeId].rodadas += 1;
-              if (typeof data.caixaFinal === "number") {
-                aggGlobal[data.timeId].caixaFinal = data.caixaFinal;
-              }
-            });
-          }
+        if (totalOficiais === 0) {
+          console.info("Nenhum resultado oficial encontrado nesta rodada.");
         }
-
-        const rankFinal = Object.values(aggGlobal)
-          .map((t) => {
-            const satisfacaoMedia =
-              t.rodadas > 0 ? t.satisfacaoSoma / t.rodadas : 0;
-            const score =
-              t.caixaFinal * 0.4 +
-              t.lucroTotal * 0.3 +
-              satisfacaoMedia * 0.3;
-            return {
-              nome: t.nome,
-              lucroTotal: t.lucroTotal,
-              satisfacaoMedia,
-              caixaFinal: t.caixaFinal,
-              scoreEPES: score,
-            };
-          })
-          .sort((a, b) => b.scoreEPES - a.scoreEPES);
-        setRankingFinalGlobal(rankFinal);
-      } catch (e: any) {
-        console.error("Erro ao buscar resultados oficiais:", e);
-        const msg = e?.message || e?.code || JSON.stringify(e);
-        setErro(`❌ Não foi possível carregar os dados: ${msg}`);
-        setResumoTurmas({});
-        setRanking([]);
-        setRankingFinalGlobal([]);
+      } catch (error) {
+        console.error("Erro ao buscar decisões:", error);
+        setErro("❌ Não foi possível carregar os dados.");
       } finally {
         setCarregando(false);
       }
     };
 
     fetchResumoGlobal();
-  }, [rodadaSelecionada, rodadaMaxima]);
+  }, [rodadaSelecionada]);
+
+  const formatBRL = (n?: number) =>
+    n == null ? "—" : n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const formatPct = (n?: number) =>
+    n == null ? "—" : `${n.toFixed(1)}%`;
+  const formatInt = (n?: number) =>
+    n == null ? "—" : Math.round(n).toLocaleString("pt-BR");
 
   return (
     <div className="page-container">
@@ -249,7 +191,7 @@ export default function Informacoes() {
       {erro && <p style={{ padding: "2rem", color: "red" }}>{erro}</p>}
       {carregando && <p style={{ padding: "2rem" }}>🔄 Carregando dados...</p>}
 
-      {!carregando && !erro && ranking.length > 0 && (
+      {!carregando && ranking.length > 0 && (
         <>
           <h3>🏆 Ranking Geral dos Times — Rodada {rodadaSelecionada}</h3>
           <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "40px" }}>
@@ -257,6 +199,7 @@ export default function Informacoes() {
               <tr style={{ backgroundColor: "#eee" }}>
                 <th>#</th>
                 <th>Time</th>
+                <th>Público-alvo</th>
                 <th>Score EPES</th>
                 <th>Lucro Total</th>
                 <th>Satisfação</th>
@@ -268,40 +211,11 @@ export default function Informacoes() {
                 <tr key={index} style={{ textAlign: "center" }}>
                   <td>{index + 1}</td>
                   <td>{t.nome}</td>
+                  <td>{t.publicoAlvo || "—"}</td>
                   <td>{t.scoreEPES.toFixed(2)}</td>
-                  <td>R$ {t.lucroTotal.toFixed(2)}</td>
-                  <td>{t.satisfacaoMedia.toFixed(1)}%</td>
-                  <td>R$ {t.caixaFinal.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      {!carregando && !erro && rodadaSelecionada === rodadaMaxima && rankingFinalGlobal.length > 0 && (
-        <>
-          <h3>🏁 Ranking Final — Vencedores após todas as rodadas</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "40px" }}>
-            <thead>
-              <tr style={{ backgroundColor: "#eee" }}>
-                <th>🏆 Posição</th>
-                <th>Time</th>
-                <th>Score EPES</th>
-                <th>Lucro Total</th>
-                <th>Satisfação Média</th>
-                <th>Caixa Final</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rankingFinalGlobal.map((t, index) => (
-                <tr key={index} style={{ textAlign: "center" }}>
-                  <td>{index + 1}</td>
-                  <td>{t.nome}</td>
-                  <td>{t.scoreEPES.toFixed(2)}</td>
-                  <td>R$ {t.lucroTotal.toFixed(2)}</td>
-                  <td>{t.satisfacaoMedia.toFixed(1)}%</td>
-                  <td>R$ {t.caixaFinal.toFixed(2)}</td>
+                  <td>{formatBRL(t.lucroTotal)}</td>
+                  <td>{formatPct(t.satisfacaoMedia)}</td>
+                  <td>{formatBRL(t.caixaFinal)}</td>
                 </tr>
               ))}
             </tbody>
@@ -310,12 +224,11 @@ export default function Informacoes() {
       )}
 
       {!carregando &&
-        !erro &&
-        Object.entries(resumoTurmas).map(([turma, rodadas]) => (
-          <div key={turma} style={{ marginBottom: "3rem" }}>
-            <h3>📘 Turma: {turma}</h3>
+        Object.entries(resumoTurmas).map(([tid, rodadas]) => (
+          <div key={tid} style={{ marginBottom: "3rem" }}>
+            <h3>📘 Time: {mapaDeNomes[tid] || tid}</h3>
             {rodadas.length === 0 ? (
-              <p>📭 Nenhum resultado registrado nesta rodada.</p>
+              <p>📭 Nenhum resultado oficial registrado nesta rodada.</p>
             ) : (
               <>
                 <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px" }}>
@@ -323,6 +236,7 @@ export default function Informacoes() {
                     <tr style={{ backgroundColor: "#eee" }}>
                       <th>Rodada</th>
                       <th>Time</th>
+                      <th>Público-alvo</th>
                       <th>EA</th>
                       <th>Demanda</th>
                       <th>Receita</th>
@@ -350,18 +264,19 @@ export default function Informacoes() {
                       >
                         <td>{rodadaSelecionada}</td>
                         <td>{mapaDeNomes[r.timeId] || r.timeId}</td>
+                        <td>{mapaPublico[r.timeId] || "—"}</td>
                         <td>{r.ea ?? "—"}</td>
-                        <td>{r.demanda ?? "—"}</td>
-                        <td>{r.receita != null ? `R$ ${r.receita.toFixed(2)}` : "—"}</td>
-                        <td>{r.custo != null ? `R$ ${r.custo.toFixed(2)}` : "—"}</td>
+                        <td>{formatInt(r.demanda)}</td>
+                        <td>{formatBRL(r.receita)}</td>
+                        <td>{formatBRL(r.custo)}</td>
                         <td>
-                          {r.lucro != null ? `R$ ${r.lucro.toFixed(2)}` : "—"}
+                          {formatBRL(r.lucro)}
                           {r.atraso && " ⚠️"}
                         </td>
-                        <td>{r.reinvestimento != null ? `R$ ${r.reinvestimento.toFixed(2)}` : "—"}</td>
-                        <td>{r.caixaFinal != null ? `R$ ${r.caixaFinal.toFixed(2)}` : "—"}</td>
+                        <td>{formatBRL(r.reinvestimento)}</td>
+                        <td>{formatBRL(r.caixaFinal)}</td>
                         <td>{r.satisfacao != null ? `${r.satisfacao.toFixed(1)}%` : "—"}</td>
-                        <td>{r.atraso ? "⚠️ Atraso" : (r.status || "✅")}</td>
+                        <td>{r.atraso ? "⚠️ Atraso" : "✅"}</td>
                       </tr>
                     ))}
                   </tbody>

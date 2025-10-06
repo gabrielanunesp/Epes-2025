@@ -1,11 +1,13 @@
-// src/pages/DecisionPage.tsx
 import React, { useEffect, useState } from "react";
 import { db, auth } from "../services/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { calcularRodada } from "../services/calcularRodadas";
+import { useNavigate } from "react-router-dom";
 import "./DecisionPage.css";
 
 export default function DecisionPage() {
+  const navigate = useNavigate();
+
   const [publicoAlvo, setPublicoAlvo] = useState("");
   const [membros, setMembros] = useState<{ uid: string }[]>([]);
   const [rodadaAtiva, setRodadaAtiva] = useState(false);
@@ -21,7 +23,6 @@ export default function DecisionPage() {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user?.uid) {
         setUid(user.uid);
-
         if (!codigoTurma) return;
 
         const timeRef = doc(db, "times", codigoTurma);
@@ -33,12 +34,9 @@ export default function DecisionPage() {
         }
       }
     });
-
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [codigoTurma]);
 
-  // estados dos selects (mantidos como no seu código)
   const [produtoIndex, setProdutoIndex] = useState(0);
   const [marketingIndex, setMarketingIndex] = useState(0);
   const [capacidadeIndex, setCapacidadeIndex] = useState(1);
@@ -52,11 +50,9 @@ export default function DecisionPage() {
   const equipeOpcoes = ["Enxuto", "Balanceado", "Reforçado", "Especializado"];
   const beneficioOpcoes = ["Cupom", "Brinde", "Frete grátis", "Nenhum"];
 
-  // preço e orçamento (mantidos como no seu código)
   const preco = 100;
   const limiteInvestimento = 500000;
 
-  // efeitos (mantidos como no seu código)
   const qualidade = [10, 20, 35, 50][produtoIndex];
   const marketingBonus = [8, 15, 25, 35][marketingIndex];
   const capacidade = [500, 1000, 2000, 3000][capacidadeIndex];
@@ -75,57 +71,52 @@ export default function DecisionPage() {
   const caixaRestante = limiteInvestimento - totalUsado;
   const passouDoLimite = caixaRestante < 0;
 
-  const formatar = (valor: number) =>
-    new Intl.NumberFormat("pt-BR").format(valor);
+  const formatar = (valor: number) => new Intl.NumberFormat("pt-BR").format(valor);
 
-  // carrega empresa (público alvo/membros) e config global (rodada)
   useEffect(() => {
     const carregarDados = async () => {
-      try {
-        if (!codigoTurma) return;
+      const empresaRef = doc(db, "empresas", codigoTurma);
+      const geralRef = doc(db, "configuracoes", "geral");
 
-        const [empresaSnap, geralSnap] = await Promise.all([
-          getDoc(doc(db, "empresas", codigoTurma)),
-          getDoc(doc(db, "configuracoes", "geral")),
-        ]);
+      const [empresaSnap, geralSnap] = await Promise.all([
+        getDoc(empresaRef),
+        getDoc(geralRef),
+      ]);
 
-        const empresaData = empresaSnap.data();
-        const geralData = geralSnap.data();
+      const empresaData = empresaSnap.data();
+      const geralData = geralSnap.data();
 
-        if (empresaData?.publicoAlvo) setPublicoAlvo(empresaData.publicoAlvo);
-        if (empresaData?.membros) setMembros(empresaData.membros);
-
-        setRodadaAtiva(geralData?.rodadaAtiva === true);
-        setRodadaAtual(geralData?.rodadaAtual ?? 1);
-      } catch (e) {
-        console.warn("⚠️ Erro ao carregar dados iniciais:", e);
+      if (empresaData?.publicoAlvo) {
+        setPublicoAlvo(empresaData.publicoAlvo);
       }
+
+      if (empresaData?.membros) {
+        setMembros(empresaData.membros);
+      }
+
+      setRodadaAtiva(geralData?.rodadaAtiva === true);
+      setRodadaAtual(geralData?.rodadaAtual ?? 1);
     };
 
     carregarDados();
   }, [codigoTurma]);
 
-  // cronômetro (quando rodada está ativa)
   useEffect(() => {
     if (!rodadaAtiva) return;
-
     const atualizarTempo = () => {
       const agora = new Date();
       const fim = new Date();
       fim.setHours(23, 59, 0, 0);
-
       const diff = Math.max(0, fim.getTime() - agora.getTime());
       const horas = Math.floor(diff / 3600000);
       const minutos = Math.floor((diff % 3600000) / 60000);
       setTempoRestante(`${horas}h ${minutos}m`);
     };
-
     atualizarTempo();
     const interval = setInterval(atualizarTempo, 60000);
     return () => clearInterval(interval);
   }, [rodadaAtiva]);
 
-  // cálculo prévio (preview na tela)
   const resultado = calcularRodada({
     preco,
     qualidade,
@@ -137,31 +128,35 @@ export default function DecisionPage() {
     caixaAcumulado: 0,
   });
 
-  // ✅ salvar decisão — corrigido!
+  // ⚠️ IMPORTANTE: não fazemos checagem prévia de "já enviou".
+  // Só vamos checar na hora do submit, para não assustar o usuário antes do tempo.
+
   const salvarDecisao = async () => {
     try {
       const timeId = localStorage.getItem("idDoTime");
 
-      // lê rodadaAtual do backend para evitar divergência
+      // rodadaAtual do backend (garante sincronismo)
       const geralRef = doc(db, "configuracoes", "geral");
       const geralSnap = await getDoc(geralRef);
-      const rodadaAtualOficial = geralSnap.data()?.rodadaAtual ?? 1;
-      const rodadaAtivaOficial = geralSnap.data()?.rodadaAtiva === true;
+      const rodadaAtualServer = geralSnap.data()?.rodadaAtual ?? 1;
 
       if (!isCapitao) {
         setMensagemCapitao("🔒 Apenas o capitão pode enviar a decisão final.");
         return;
       }
-      if (!rodadaAtivaOficial) {
-        setMensagemCapitao("⛔ A rodada está fechada. Aguarde o responsável iniciar a próxima rodada.");
-        return;
-      }
-      if (passouDoLimite) {
-        setMensagemCapitao("❌ Você ultrapassou o limite de investimento. Ajuste suas decisões.");
-        return;
-      }
+      if (!rodadaAtiva || passouDoLimite) return;
+
       if (!uid || !codigoTurma || !timeId || uid.trim() === "" || timeId.trim() === "") {
         setMensagemCapitao("⚠️ Informações incompletas. Verifique login e se você escolheu um time.");
+        return;
+      }
+
+      // ✅ Checagem de duplicidade SOMENTE no clique do botão
+      const decisaoId = `${codigoTurma}_rodada${rodadaAtualServer}_${uid}`;
+      const decisaoRef = doc(db, "decisoes", decisaoId);
+      const jaTem = await getDoc(decisaoRef);
+      if (jaTem.exists()) {
+        setMensagemCapitao("🔒 Esta equipe já enviou a decisão desta rodada.");
         return;
       }
 
@@ -189,43 +184,39 @@ export default function DecisionPage() {
         codigoTurma,
         uid,
         timeId,
+        status: "✅",
       };
 
-      // 1) log da decisão (coleção plana)
-      await setDoc(
-        doc(db, "decisoes", `${codigoTurma}_rodada${rodadaAtualOficial}_${uid}`),
-        dados
-      );
+      // grava em "decisoes" (flat)
+      await setDoc(decisaoRef, dados);
 
-      // 2) subcoleção por turma/rodada (NADA de /decisoes/ aqui)
-      await setDoc(
-        doc(db, "rodadas", codigoTurma, `rodada${rodadaAtualOficial}`, uid),
-        {
-          timeId,
-          ea: resultado.ea,
-          demanda: resultado.demanda,
-          receita: resultado.receita,
-          custo: resultado.custo,
-          lucro: resultado.lucro,
-          reinvestimento: resultado.reinvestimento,
-          caixaFinal: resultado.caixaFinal,
-          satisfacao: resultado.satisfacao,
-          atraso: false,
-          status: "✅",
-          timestamp: new Date(),
-        }
-      );
+      // grava também no "sub" da rodada (auditoria por rodada)
+      await setDoc(doc(db, "rodadas", codigoTurma, `rodada${rodadaAtualServer}`, uid), {
+        timeId,
+        ea: resultado.ea,
+        demanda: resultado.demanda,
+        receita: resultado.receita,
+        custo: resultado.custo,
+        lucro: resultado.lucro,
+        reinvestimento: resultado.reinvestimento,
+        caixaFinal: resultado.caixaFinal,
+        satisfacao: resultado.satisfacao,
+        atraso: false,
+        status: "✅",
+        timestamp: new Date(),
+      });
 
-      // 3) espelho plano em "rodadas"
-      await setDoc(
-        doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtualOficial}_${uid}`),
-        { ...dados, status: "✅" }
-      );
+      // opcional: snapshot “flat” para consultas simples
+      await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtualServer}_${uid}`), dados);
 
       setMensagemCapitao("✅ Decisão salva com sucesso!");
-    } catch (e: any) {
-      console.error("Erro ao salvar decisão:", e);
-      setMensagemCapitao("❌ Erro ao salvar decisão. Veja o console para detalhes.");
+      // 👉 redireciona para o dashboard após salvar
+      setTimeout(() => {
+        navigate("/dashboard");
+      }, 600);
+    } catch (err) {
+      console.error("Erro ao salvar decisão:", err);
+      setMensagemCapitao("❌ Erro ao salvar decisão. Tente novamente.");
     }
   };
 
@@ -233,7 +224,8 @@ export default function DecisionPage() {
     <div className="decision-container">
       <h2>📊 Decisões Estratégicas</h2>
 
-      {/* Seus blocos de decisão (mantidos) */}
+      {/* Se quiser mostrar a faixa de preço, adicione aqui inputs/labels */}
+
       <div className="decision-block">
         <label>🔬 Produto & P&D:</label>
         <select value={produtoIndex} onChange={(e) => setProdutoIndex(Number(e.target.value))}>
