@@ -4,7 +4,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 
-// == Mesma matemática do seu calcularRodada (resumida) ======================
+// === Funções auxiliares ===
 function calcularCVU(qualidade: number, eficiencia: number): number {
   const base = 20, alpha = 0.2, beta = 0.1;
   const q = Math.max(0, qualidade ?? 0);
@@ -12,6 +12,40 @@ function calcularCVU(qualidade: number, eficiencia: number): number {
   return Math.max(0, Number((base + alpha*q - beta*e).toFixed(2)));
 }
 
+function beneficioFromBonus(b:number){
+  if (b === 10) return "Cupom";
+  if (b === 15) return "Brinde";
+  if (b === 20) return "Frete grátis";
+  return "Nenhum";
+}
+
+function softmax(scores:number[]){
+  if (scores.length === 0) return [];
+  const m = Math.max(...scores);
+  const exps = scores.map(s=>Math.exp(s-m));
+  const sum = exps.reduce((a,b)=>a+b,0)||1;
+  return exps.map(v=>v/sum);
+}
+
+function windfallDamping(profits:number[], alpha=0.2){
+  if (profits.length <= 2) return profits;
+  const s = [...profits].sort((a,b)=>a-b);
+  const med = s[Math.floor(s.length/2)];
+  const abs = profits.map(p=>Math.abs(p-med)).sort((a,b)=>a-b);
+  const mad = abs[Math.floor(abs.length/2)] || 1;
+  const thr = med + 1.5*mad;
+  return profits.map(p => p<=thr ? p : thr + (p-thr)*(1-alpha));
+}
+
+function splitProfit(lucro:number, rate=0.2){
+  const pos = Math.max(0, lucro);
+  return {
+    reinvestimento: Number((pos*rate).toFixed(2)),
+    caixaDelta: Number((pos*(1-rate)).toFixed(2)),
+  };
+}
+
+// === Multiplicadores por público-alvo ===
 const qualidadeMult: Record<string, number> = {
   "Jovens (15–24 anos)": 0.8,
   "Adultos (25–40 anos)": 1.0,
@@ -46,37 +80,8 @@ const beneficioBonusExtra: Record<string, number> = {
   "Frete grátis|Adultos (25–40 anos)": 5,
   "Frete grátis|Sêniores (40+)": 5,
 };
-function beneficioFromBonus(b:number){
-  if (b === 10) return "Cupom";
-  if (b === 15) return "Brinde";
-  if (b === 20) return "Frete grátis";
-  return "Nenhum";
-}
-function softmax(scores:number[]){
-  if (scores.length === 0) return [];
-  const m = Math.max(...scores);
-  const exps = scores.map(s=>Math.exp(s-m));
-  const sum = exps.reduce((a,b)=>a+b,0)||1;
-  return exps.map(v=>v/sum);
-}
-function windfallDamping(profits:number[], alpha=0.2){
-  if (profits.length <= 2) return profits;
-  const s = [...profits].sort((a,b)=>a-b);
-  const med = s[Math.floor(s.length/2)];
-  const abs = profits.map(p=>Math.abs(p-med)).sort((a,b)=>a-b);
-  const mad = abs[Math.floor(abs.length/2)] || 1;
-  const thr = med + 1.5*mad;
-  return profits.map(p => p<=thr ? p : thr + (p-thr)*(1-alpha));
-}
-function splitProfit(lucro:number, rate=0.2){
-  const pos = Math.max(0, lucro);
-  return {
-    reinvestimento: Number((pos*rate).toFixed(2)),
-    caixaDelta: Number((pos*(1-rate)).toFixed(2)),
-  };
-}
 
-// Tipos básicos (compatíveis com o que você salva hoje)
+// === Tipos ===
 type Decisao = {
   timeId: string;
   preco: number;
@@ -88,25 +93,24 @@ type Decisao = {
   publicoAlvo?: string;
   timestamp?: any;
 };
+
 type Resultado = {
   timeId: string;
   ea: number;
-  share: number;   // %
-  demanda: number; // vendas efetivas
+  share: number;
+  demanda: number;
   receita: number;
   custo: number;
   lucro: number;
   reinvestimento: number;
-  caixaFinal: number; // delta do caixa (80%)
+  caixaFinal: number;
   cvu: number;
   backlog: boolean;
   satisfacao: number;
-  status: string;   // "✅ OFICIAL"
+  status: string;
   oficial: true;
   timestamp: any;
 };
-
-// === Função principal (fechamento local) =====================================
 export async function fecharRodadaLocal(params?: {
   turma?: string;
   rodada?: number;
@@ -125,12 +129,11 @@ export async function fecharRodadaLocal(params?: {
     turmas = [params.turma];
   } else {
     const empSnap = await getDocs(collection(db, "empresas"));
-    turmas = empSnap.docs.map(d=>d.id);
+    turmas = empSnap.docs.map(d => d.id);
     if (turmas.length === 0) {
-      // fallback: extrair de times.codigoTurma
       const tSnap = await getDocs(collection(db, "times"));
       const set = new Set<string>();
-      tSnap.docs.forEach(d=>{
+      tSnap.docs.forEach(d => {
         const ct = (d.data() as any)?.codigoTurma;
         if (ct) set.add(ct);
       });
@@ -143,10 +146,10 @@ export async function fecharRodadaLocal(params?: {
     const rodadaCol = collection(db, "rodadas", turmaId, `rodada${rodada}`);
     const snap = await getDocs(rodadaCol);
 
-    // Pega a decisão mais recente por time (ignorando docs "resultado_...")
+    // Pega a decisão mais recente por time
     const porTime = new Map<string, Decisao>();
-    snap.docs.forEach(d=>{
-      if (d.id.startsWith("resultado_")) return; // ignora resultados antigos
+    snap.docs.forEach(d => {
+      if (d.id.startsWith("resultado_")) return;
       const data = d.data() as any;
       if (!data?.timeId) return;
       const atual = porTime.get(data.timeId);
@@ -167,19 +170,18 @@ export async function fecharRodadaLocal(params?: {
       }
     });
 
-    // Lista de times da turma (para punir quem não respondeu)
+    // Lista de times da turma
     let timesIds: string[] = [];
     try {
       const qTimes = query(collection(db, "times"), where("codigoTurma", "==", turmaId));
       const tSnap = await getDocs(qTimes);
-      timesIds = tSnap.docs.map(d=>d.id);
+      timesIds = tSnap.docs.map(d => d.id);
     } catch {
-      // fallback: usa quem tem decisão
-      timesIds = Array.from(new Set(Array.from(porTime.values()).map(v=>v.timeId)));
+      timesIds = Array.from(new Set(Array.from(porTime.values()).map(v => v.timeId)));
     }
 
-    // Decisoes finais (quem não respondeu => mínimo)
-    const decisoes: Decisao[] = timesIds.map(timeId=>{
+    // Decisões finais
+    const decisoes: Decisao[] = timesIds.map(timeId => {
       const d = porTime.get(timeId);
       if (d) return d;
       return {
@@ -195,12 +197,10 @@ export async function fecharRodadaLocal(params?: {
       };
     });
 
-    // Parâmetros de mercado
     const precoMedioMercado = 100;
     const marketSize = 10000;
-
     // EA por time
-    const EAs = decisoes.map(d=>{
+    const EAs = decisoes.map(d => {
       const publico = d.publicoAlvo || "Adultos (25–40 anos)";
       const benefTipo = beneficioFromBonus(d.beneficioBonus);
       const extra = beneficioBonusExtra[`${benefTipo}|${publico}`] ?? 0;
@@ -208,9 +208,9 @@ export async function fecharRodadaLocal(params?: {
 
       const eaBase =
         (100 - Math.max(1, d.preco)) +
-        (d.qualidade ?? 0)*(qualidadeMult[publico] ?? 1) +
-        (d.marketingBonus ?? 0)*(marketingMult[publico] ?? 1) +
-        (d.equipeBonus ?? 0)*(equipeMult[publico] ?? 1) +
+        (d.qualidade ?? 0) * (qualidadeMult[publico] ?? 1) +
+        (d.marketingBonus ?? 0) * (marketingMult[publico] ?? 1) +
+        (d.equipeBonus ?? 0) * (equipeMult[publico] ?? 1) +
         benef;
 
       return Number(eaBase.toFixed(4));
@@ -219,23 +219,54 @@ export async function fecharRodadaLocal(params?: {
     // shares via softmax
     const shares = softmax(EAs);
 
-    // Loop de cálculo
-    const receitas:number[] = [], custos:number[] = [], lucrosRaw:number[] = [];
-    const vendasEfetivas:number[] = [], cvus:number[] = [], backlogs:boolean[] = [], satisfacoes:number[] = [];
+    // === AJUSTE: limitar vendas por público-alvo ===
+    const grupos: Record<string, number[]> = {};
+    decisoes.forEach((d, i) => {
+      const publico = d.publicoAlvo || "Adultos (25–40 anos)";
+      if (!grupos[publico]) grupos[publico] = [];
+      grupos[publico].push(i);
+    });
 
-    for (let i=0;i<decisoes.length;i++){
+    const vendasEfetivas: number[] = [];
+    const backlogs: boolean[] = [];
+
+    for (const publico in grupos) {
+      const indices = grupos[publico];
+      const totalDemanda = indices.reduce((sum, i) => {
+        const preco = Math.max(1, decisoes[i].preco);
+        const eps = elasticidadePreco[publico] ?? 1.0;
+        const fatorPreco = Math.pow(precoMedioMercado / preco, eps);
+        return sum + marketSize * shares[i] * fatorPreco;
+      }, 0);
+
+      const limite = marketSize;
+      const fator = totalDemanda > limite ? limite / totalDemanda : 1;
+
+      indices.forEach(i => {
+        const preco = Math.max(1, decisoes[i].preco);
+        const eps = elasticidadePreco[publico] ?? 1.0;
+        const fatorPreco = Math.pow(precoMedioMercado / preco, eps);
+        const demandaBruta = marketSize * shares[i] * fatorPreco;
+        const demandaAjustada = demandaBruta * fator;
+        const vendas = Math.min(demandaAjustada, Math.max(0, decisoes[i].capacidade));
+        vendasEfetivas[i] = Math.round(vendas);
+        backlogs[i] = demandaAjustada > decisoes[i].capacidade;
+      });
+    }
+    const receitas: number[] = [];
+    const custos: number[] = [];
+    const lucrosRaw: number[] = [];
+    const cvus: number[] = [];
+    const satisfacoes: number[] = [];
+
+    for (let i = 0; i < decisoes.length; i++) {
       const d = decisoes[i];
       const publico = d.publicoAlvo || "Adultos (25–40 anos)";
-      const epsilon = elasticidadePreco[publico] ?? 1.0;
       const preco = Math.max(1, d.preco);
+      const vendas = vendasEfetivas[i];
+      const houveBacklog = backlogs[i];
 
-      const fatorPreco = Math.pow(precoMedioMercado / preco, epsilon);
-      const demandaBruta = marketSize * shares[i] * fatorPreco;
-
-      const vendas = Math.min(demandaBruta, Math.max(0, d.capacidade));
-      const houveBacklog = demandaBruta > d.capacidade;
-
-      // satisfação (penaliza backlog como no cliente)
+      // Penalidade de satisfação por backlog
       let eaAdj = EAs[i];
       if (houveBacklog) {
         if (["Jovens (15–24 anos)", "Classe C/D"].includes(publico)) eaAdj -= 15;
@@ -261,20 +292,17 @@ export async function fecharRodadaLocal(params?: {
       receitas.push(Number(receita.toFixed(2)));
       custos.push(Number(custoTotal.toFixed(2)));
       lucrosRaw.push(Number(lucro.toFixed(2)));
-      vendasEfetivas.push(Math.round(vendas));
       cvus.push(Number(cvu.toFixed(2)));
-      backlogs.push(houveBacklog);
-      satisfacoes.push(Math.min(100, eaAdj/2));
+      satisfacoes.push(Math.min(100, eaAdj / 2));
     }
 
     // Amortecedor anti “ganho desproporcional”
-    const lucros = windfallDamping(lucrosRaw, 0.2).map(n=>Number(n.toFixed(2)));
-
+    const lucros = windfallDamping(lucrosRaw, 0.2).map(n => Number(n.toFixed(2)));
     // Grava resultados oficiais + atualiza times
     const batch = writeBatch(db);
     const agora = new Date();
 
-    for (let i=0;i<decisoes.length;i++){
+    for (let i = 0; i < decisoes.length; i++) {
       const timeId = decisoes[i].timeId;
       const { reinvestimento, caixaDelta } = splitProfit(lucros[i], 0.2);
 
@@ -294,7 +322,7 @@ export async function fecharRodadaLocal(params?: {
       batch.set(resRef, {
         timeId,
         ea: Number(EAs[i].toFixed(2)),
-        share: Number((shares[i]*100).toFixed(2)),
+        share: Number((shares[i] * 100).toFixed(2)),
         demanda: vendasEfetivas[i],
         receita: receitas[i],
         custo: custos[i],
