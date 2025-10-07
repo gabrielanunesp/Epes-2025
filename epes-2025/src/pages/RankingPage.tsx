@@ -7,6 +7,7 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
+import { useRoundPreview } from "../hooks/useRoundPreview";
 
 type TimeDoc = {
   id: string;
@@ -44,6 +45,11 @@ const RankingPage: React.FC = () => {
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [rodadaAtual, setRodadaAtual] = useState<number>(1);
   const [rodadaAtiva, setRodadaAtiva] = useState<boolean>(false);
+  const [seasonId, setSeasonId] = useState<string>("");
+  const [roundId, setRoundId] = useState<string>("");
+  const [teamId] = useState<string>(localStorage.getItem("idDoTime") ?? "");
+
+  const preview = useRoundPreview({ seasonId, roundId, teamId });
 
   useEffect(() => {
     (async () => {
@@ -58,6 +64,9 @@ const RankingPage: React.FC = () => {
         const rAtiva = g.rodadaAtiva === true;
         setRodadaAtual(rAtual);
         setRodadaAtiva(rAtiva);
+        const season = (g.seasonId as string) ?? "default-season";
+        setSeasonId(season);
+        setRoundId(`D${rAtual}`);
 
         // 2) Carregar todos os times
         const timesSnap = await getDocs(collection(db, "times"));
@@ -185,6 +194,42 @@ const RankingPage: React.FC = () => {
           <em>✅ Rodada #{rodadaAtual} está fechada — ranking considera 1..#{rodadaAtual}.</em>
         )}
       </p>
+
+      <section style={{ marginBottom: "2rem", background: "#f8fafc", padding: "1.25rem", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+        <h2 style={{ marginTop: 0 }}>📊 Preview competitivo da rodada ativa</h2>
+        {preview.loading && <p>Calculando previsão coletiva...</p>}
+        {preview.error && <p style={{ color: "#b91c1c" }}>{preview.error}</p>}
+        {!preview.loading && preview.ranking.length === 0 && <p>Aguardando decisões para gerar o preview.</p>}
+        {!preview.loading && preview.ranking.length > 0 && (
+          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+            <thead>
+              <tr style={{ background: "#e2e8f0" }}>
+                <th style={{ textAlign: "left", padding: "8px" }}>#</th>
+                <th style={{ textAlign: "left", padding: "8px" }}>Time</th>
+                <th style={{ textAlign: "right", padding: "8px" }}>Share</th>
+                <th style={{ textAlign: "right", padding: "8px" }}>Vendas</th>
+                <th style={{ textAlign: "right", padding: "8px" }}>Lucro</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.ranking.map((linha: any, idx: number) => (
+                <tr
+                  key={linha.teamId}
+                  style={{
+                    background: linha.teamId === teamId ? "rgba(34,197,94,0.15)" : "transparent",
+                  }}
+                >
+                  <td style={{ padding: "8px" }}>{idx + 1}</td>
+                  <td style={{ padding: "8px" }}>{linha.name ?? linha.teamId}</td>
+                  <td style={{ padding: "8px", textAlign: "right" }}>{(linha.share * 100).toFixed(2)}%</td>
+                  <td style={{ padding: "8px", textAlign: "right" }}>{Math.round(linha.sales).toLocaleString("pt-BR")}</td>
+                  <td style={{ padding: "8px", textAlign: "right" }}>R$ {linha.profit.toLocaleString("pt-BR")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       {carregando && <p>🔄 Carregando...</p>}
       {mensagem && !carregando && <p style={{ color: "#666" }}>{mensagem}</p>}

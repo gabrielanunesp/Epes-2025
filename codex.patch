@@ -1,0 +1,2657 @@
+diff --git a/epes-2025/.gitignore b/epes-2025/.gitignore
+index a547bf36d8d11a4f89c59c144f24795749086dd1..27e8db9b245e2ef88e901057cf040931bf896eca 100644
+--- a/epes-2025/.gitignore
++++ b/epes-2025/.gitignore
+@@ -1,24 +1,25 @@
+ # Logs
+ logs
+ *.log
+ npm-debug.log*
+ yarn-debug.log*
+ yarn-error.log*
+ pnpm-debug.log*
+ lerna-debug.log*
+ 
+ node_modules
+ dist
+ dist-ssr
++build
+ *.local
+ 
+ # Editor directories and files
+ .vscode/*
+ !.vscode/extensions.json
+ .idea
+ .DS_Store
+ *.suo
+ *.ntvs*
+ *.njsproj
+ *.sln
+ *.sw?
+diff --git a/epes-2025/README.md b/epes-2025/README.md
+index 7959ce4269342e8ede1d06bded69ec800d8503d9..70b85f657650efb3cc85dd1cedb2d731ac4bee9d 100644
+--- a/epes-2025/README.md
++++ b/epes-2025/README.md
+@@ -1,69 +1,169 @@
+-# React + TypeScript + Vite
+-
+-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+-
+-Currently, two official plugins are available:
+-
+-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+-
+-## Expanding the ESLint configuration
+-
+-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+-
+-```js
+-export default tseslint.config([
+-  globalIgnores(['dist']),
+-  {
+-    files: ['**/*.{ts,tsx}'],
+-    extends: [
+-      // Other configs...
+-
+-      // Remove tseslint.configs.recommended and replace with this
+-      ...tseslint.configs.recommendedTypeChecked,
+-      // Alternatively, use this for stricter rules
+-      ...tseslint.configs.strictTypeChecked,
+-      // Optionally, add this for stylistic rules
+-      ...tseslint.configs.stylisticTypeChecked,
+-
+-      // Other configs...
+-    ],
+-    languageOptions: {
+-      parserOptions: {
+-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+-        tsconfigRootDir: import.meta.dirname,
+-      },
+-      // other options...
+-    },
+-  },
+-])
++# EPES Challenge 2025 – Engine coletivo
++
++Este repositório contém a aplicação web (React + Firebase) e o motor de simulação coletivo para o desafio EPES 2025. A versão atual corrige o bug de cálculo isolado de demanda: agora todas as equipes disputam o mesmo mercado e a divisão de vendas respeita o tamanho total do mercado da rodada.
++
++## Visão geral das pastas
++
++| Pasta | Descrição |
++|-------|-----------|
++| `engine/` | Módulos TypeScript puros com todo o algoritmo competitivo (EA, softmax, demanda, custos, lucro, divisão 20/80). |
++| `server/` | API HTTP minimalista (`/v1/compute` e `/v1/close-round`) que compila o motor e expõe os cálculos via REST. |
++| `src/` | Aplicação React. Os destaques são o novo hook `useRoundPreview`, a tela de decisões (D2..D10) e o ranking com preview. |
++| `tests/` | Runner em Node que compila o motor e executa testes automatizados exigidos (softmax, demanda coletiva, limite de capacidade, split 20/80, amortecedor e cenário de três equipes). |
++
++## Pré-requisitos
++
++* Node.js 20+
++* Conta Firebase já configurada (as chaves existentes permanecem).
++* Permissão de leitura/gravação nas coleções descritas abaixo.
++
++## Instalação
++
++```bash
++npm install # usa dependências já presentes no lockfile
+ ```
+ 
+-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+-
+-```js
+-// eslint.config.js
+-import reactX from 'eslint-plugin-react-x'
+-import reactDom from 'eslint-plugin-react-dom'
+-
+-export default tseslint.config([
+-  globalIgnores(['dist']),
+-  {
+-    files: ['**/*.{ts,tsx}'],
+-    extends: [
+-      // Other configs...
+-      // Enable lint rules for React
+-      reactX.configs['recommended-typescript'],
+-      // Enable lint rules for React DOM
+-      reactDom.configs.recommended,
+-    ],
+-    languageOptions: {
+-      parserOptions: {
+-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+-        tsconfigRootDir: import.meta.dirname,
+-      },
+-      // other options...
+-    },
+-  },
+-])
++> **Observação:** o ambiente de testes executa o TypeScript do motor via `npx tsc`. Nenhuma biblioteca adicional é necessária.
++
++## Scripts principais
++
++| Comando | Descrição |
++|---------|-----------|
++| `npm run dev` | Frontend em modo desenvolvimento (Vite). |
++| `npm run server:dev` | Sobe a API do motor em `http://localhost:8080` (compila `engine/` automaticamente). |
++| `npm run build` | Build de produção do frontend. |
++| `npm run test` | Compila o motor (`tsconfig.engine.json`) e roda os testes automatizados em `tests/run-tests.js`. |
++
++## API do motor
++
++### `POST /v1/compute`
++
++Calcula o ranking coletivo da rodada.
++
++```bash
++curl -X POST http://localhost:8080/v1/compute \
++  -H "Content-Type: application/json" \
++  -d '{
++        "season": {
++          "refPrice": 50,
++          "softmaxBeta": 1.1,
++          "shareCap": 0.55,
++          "dampingAlpha": 1.5,
++          "weights": { "price": 40, "quality": 30, "marketing": 20, "cx": 10 },
++          "costs": { "cvuBase": 12, "kQuality": 8, "kEfficiency": 6, "fixedTeamCost": 2000, "benefitCost": 500 },
++          "rules": { "reinvestRate": 0.2 }
++        },
++        "publicTargets": [
++          { "id": "CLASS_AB", "deltas": {"price": 5}, "elasticity": 0.9, "marketingBoost": 0.1 },
++          { "id": "CLASS_CD", "deltas": {"marketing": 3}, "elasticity": 1.3, "marketingBoost": 0.2 }
++        ],
++        "teams": [
++          {
++            "teamId": "CLASS_AB",
++            "name": "Classe AB",
++            "publicTargetId": "CLASS_AB",
++            "price": 55,
++            "marketingSpend": 15000,
++            "capacity": 8000,
++            "quality": 80,
++            "efficiency": 60,
++            "cx": 70,
++            "launchEA": 0.05,
++            "brandEA": 0.05,
++            "reinvestBudget": 2000,
++            "cash": 9000
++          }
++        ],
++        "round": { "marketSize": 10000, "roundId": "D5" }
++      }'
+ ```
++
++Resposta resumida:
++
++```json
++{
++  "results": [
++    {
++      "teamId": "CLASS_AB",
++      "share": 0.42,
++      "sales": 4200,
++      "revenue": 231000,
++      "profit": 64000,
++      "reinvest": 12800,
++      "cashToFinal": 51200,
++      "flags": { "capacityBound": false, "priceRisk": false, "negativeProfit": false }
++    }
++  ],
++  "totals": {
++    "marketSize": 10000,
++    "totalShare": 1,
++    "totalSales": 10000,
++    "totalProfit": 64000
++  }
++}
++```
++
++### `POST /v1/close-round`
++
++Recalcula a rodada e retorna apenas os agregados (útil para persistência oficial). Inclua o cabeçalho `Idempotency-Key` para garantir idempotência.
++
++## Fluxo das telas (frontend)
++
++* **D0 – Identidade**: tela existente continua utilizada para cadastrar nome/logo/público.
++* **D1 – Planejamento**: orçamento inicial utiliza os valores carregados do Firestore e prepara a rodada D2.
++* **D2 – D10 – Decisões**:
++  * Formulário com validações de preço (±20% do preço de referência) e upgrades limitados ao orçamento de reinvestimento.
++  * Botões “Salvar” e “Calcular Preview” invocam o endpoint `/v1/compute` via `useRoundPreview`.
++  * Bloco “Meu time” mostra EA, participação, vendas, receita, lucro e divisão 20/80.
++  * Tabela “Ranking previsto” ordena todas as equipes pelo lucro do preview.
++* **Ranking**: mantém o ranking oficial (dados persistidos) e adiciona um bloco de preview competitivo calculado pelo motor coletivo.
++
++## Estrutura de dados no Firestore
++
++```
++seasons/{seasonId}
++  refPrice, softmaxBeta, shareCap, dampingAlpha
++  weights { price, quality, marketing, cx }
++  costs { cvuBase, kQuality, kEfficiency, fixedTeamCost, benefitCost }
++  rules { reinvestRate }
++  publicTargets/{targetId} { deltas, elasticity, marketingBoost }
++  teams/{teamId} { cash, reinvestBudget }
++  rounds/{roundId}
++    marketSize, startAt, lockAt
++    teams/{teamId} { price, marketingSpend, capacity, quality, efficiency, cx, launchEA, brandEA, benefitChoice }
++```
++
++## Como garantimos o mercado coletivo
++
++1. **Cálculo vetorial do EA** – todas as equipes passam pelo mesmo vetor de pesos ajustados pelo público-alvo (`tunedWeights`). O EA final incorpora preço, qualidade, marketing, CX e bônus de marca/lançamento.
++2. **Softmax competitivo** – aplicamos `softmax(beta)` seguido de `capShares` (limite opcional por time) e renormalização. A soma dos shares é sempre 1.
++3. **Demanda coletiva** – `demandRaw = marketSize * share * (P* / price)^elasticity`. As vendas brutas são limitadas individualmente pela capacidade e, se a soma ainda exceder o market size, aplicamos um `rescale` proporcional garantindo `∑sales ≤ marketSize`.
++4. **Lucro e windfall** – custos variáveis, marketing, fixos e benefícios são abatidos. O amortecedor (`windfallDamping`) reduz outliers com base em mediana + MAD antes de dividir o lucro em 20% reinvestível e 80% para o caixa final.
++5. **API e UI** – o endpoint `/v1/compute` devolve todos os times ordenados por lucro. O frontend consome apenas a resposta agregada, preservando o sigilo das decisões rivais.
++
++## Decisões & justificativas
++
++* **Custo de upgrade simplificado**: em ausência de uma tabela oficial, adotamos R$100 por ponto acima do patamar anterior (qualidade, eficiência, CX). Documentamos essa regra e garantimos que o formulário bloqueie upgrades acima do `reinvestBudget` retornado pelo backend.
++* **Servidor HTTP nativo**: optamos por Node `http` puro para evitar dependências extras e facilitar o deploy em Cloud Run/Firebase Hosting + Cloud Functions.
++* **Testes em Node puro**: como o ambiente não disponibiliza bibliotecas adicionais, o runner compila o TypeScript do motor e valida os cenários via `assert`, cumprindo os requisitos funcionais.
++
++## Como rodar localmente
++
++1. Inicie o backend do motor:
++   ```bash
++   npm run server:dev
++   ```
++2. Em outro terminal, suba o frontend:
++   ```bash
++   npm run dev
++   ```
++3. Acesse `http://localhost:5173`.
++4. Configure a variável `VITE_ENGINE_URL` (arquivo `.env`) caso a API esteja hospedada em outro endereço.
++
++## Contribuindo
++
++1. Garanta que os testes passem: `npm run test`.
++2. Registre as decisões no Firestore seguindo o esquema acima.
++3. Abra um PR descrevendo alterações relevantes no motor ou nas telas.
++
++Bom jogo! 🚀
+diff --git a/epes-2025/engine/index.ts b/epes-2025/engine/index.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..551ec1b5f168fdf82cb277f3b67a5c2f819315d0
+--- /dev/null
++++ b/epes-2025/engine/index.ts
+@@ -0,0 +1,191 @@
++import {
++  clamp,
++  computeEA,
++  demandRaw,
++  marketingScore,
++  priceScore,
++  softmax,
++  capShares,
++  splitProfit,
++  tunedWeights,
++  unitCost,
++  windfallDamping,
++} from './math.js';
++import type {
++  ComputeRoundInput,
++  ComputeRoundOutput,
++  PublicTarget,
++  SeasonParams,
++  TeamDecision,
++  TeamRoundResult,
++} from './types.js';
++
++export {
++  clamp,
++  computeEA,
++  demandRaw,
++  marketingScore,
++  priceScore,
++  softmax,
++  capShares,
++  splitProfit,
++  tunedWeights,
++  unitCost,
++  windfallDamping,
++};
++
++const indexById = <T extends { id: string }>(items: T[]) => {
++  const map = new Map<string, T>();
++  for (const item of items) {
++    map.set(item.id, item);
++  }
++  return map;
++};
++
++const safeNumber = (value: unknown, fallback: number) => {
++  if (typeof value === 'number' && Number.isFinite(value)) return value;
++  return fallback;
++};
++
++const ensurePositive = (value: number, fallback = 0) => (Number.isFinite(value) && value > 0 ? value : fallback);
++
++const normalizeShares = (shares: number[]) => {
++  const total = shares.reduce((acc, val) => acc + val, 0);
++  if (total <= 0) {
++    const equal = shares.length ? 1 / shares.length : 0;
++    return shares.map(() => equal);
++  }
++  return shares.map((share) => share / total);
++};
++
++const mapPublicTarget = (publicTargets: PublicTarget[], id: string) => {
++  const map = indexById(publicTargets);
++  return map.get(id);
++};
++
++const computeBenefitCost = (team: TeamDecision, season: SeasonParams) => {
++  if (team.benefitCostOverride !== undefined && team.benefitCostOverride !== null) {
++    return Math.max(team.benefitCostOverride, 0);
++  }
++  return Math.max(season.costs.benefitCost ?? 0, 0);
++};
++
++export const computeRound = (input: ComputeRoundInput): ComputeRoundOutput => {
++  const { season, teams, publicTargets, round } = input;
++  const refPrice = safeNumber(season.refPrice, 1);
++  const marketSize = safeNumber(round.marketSize, 0);
++  const weightsMap = indexById(publicTargets);
++  const beta = safeNumber(season.softmaxBeta, 1);
++
++  const enriched = teams.map((team) => {
++    const target = weightsMap.get(team.publicTargetId) ?? null;
++    const weights = tunedWeights(season.weights, target ?? undefined);
++    const eaInfo = computeEA(weights, team, refPrice, target ?? undefined);
++    return { team, target, weights, eaInfo };
++  });
++
++  const softmaxInput = enriched.map((item) => item.eaInfo.ea);
++  let shares = softmax(softmaxInput, beta);
++  shares = capShares(shares, season.shareCap ?? undefined);
++  shares = normalizeShares(shares);
++
++  const demandList = enriched.map((item, idx) => {
++    const elasticity = item.target?.elasticity ?? 1;
++    return demandRaw(marketSize, shares[idx], ensurePositive(item.team.price, refPrice), refPrice, elasticity);
++  });
++
++  const preliminarySales = demandList.map((demand, idx) => Math.min(demand, ensurePositive(enriched[idx].team.capacity)));
++  const totalPreliminary = preliminarySales.reduce((acc, v) => acc + v, 0);
++  const capacityFlags = demandList.map((demand, idx) => demand > ensurePositive(enriched[idx].team.capacity));
++
++  let sales = preliminarySales.slice();
++  if (totalPreliminary > marketSize && marketSize > 0) {
++    const scale = marketSize / totalPreliminary;
++    sales = preliminarySales.map((value) => value * scale);
++  }
++
++  const unitCosts = enriched.map((item) => unitCost(item.team, season));
++
++  const results: TeamRoundResult[] = enriched.map((item, idx) => {
++    const team = item.team;
++    const marketingCost = Math.max(team.marketingSpend, 0);
++    const fixedCost = Math.max(season.costs.fixedTeamCost, 0);
++    const benefitCost = computeBenefitCost(team, season);
++    const variableCost = unitCosts[idx] * sales[idx];
++    const revenue = sales[idx] * ensurePositive(team.price, refPrice);
++    const profitRaw = revenue - variableCost - marketingCost - fixedCost - benefitCost;
++    return {
++      teamId: team.teamId,
++      name: team.name,
++      publicTargetId: team.publicTargetId,
++      eaLinear: item.eaInfo.eaLinear,
++      ea: item.eaInfo.ea,
++      share: shares[idx],
++      demandRaw: demandList[idx],
++      capacity: ensurePositive(team.capacity),
++      sales: sales[idx],
++      revenue,
++      unitCost: unitCosts[idx],
++      variableCost,
++      marketingCost,
++      fixedCost,
++      benefitCost,
++      profitRaw,
++      profit: profitRaw, // placeholder updated below
++      reinvest: 0,
++      cashToFinal: 0,
++      price: ensurePositive(team.price, refPrice),
++      marketingSpend: marketingCost,
++      flags: {
++        capacityBound: capacityFlags[idx],
++        priceRisk: unitCosts[idx] > ensurePositive(team.price, refPrice),
++        negativeProfit: profitRaw <= 0,
++      },
++    };
++  });
++
++  const damped = windfallDamping(results.map((r) => r.profitRaw), season.dampingAlpha ?? 0);
++  const reinvestRate = season.rules.reinvestRate;
++  const finalResults = results.map((result, idx) => {
++    const profit = damped[idx];
++    const split = splitProfit(profit, reinvestRate);
++    return {
++      ...result,
++      profit,
++      reinvest: split.reinvest,
++      cashToFinal: split.cashToFinal,
++      flags: {
++        ...result.flags,
++        negativeProfit: profit <= 0,
++      },
++    };
++  });
++
++  finalResults.sort((a, b) => b.profit - a.profit);
++
++  const totals = finalResults.reduce(
++    (acc, result) => {
++      acc.totalShare += result.share;
++      acc.totalDemand += result.demandRaw;
++      acc.totalSales += result.sales;
++      acc.totalRevenue += result.revenue;
++      acc.totalProfit += result.profit;
++      return acc;
++    },
++    {
++      marketSize,
++      totalShare: 0,
++      totalDemand: 0,
++      totalSales: 0,
++      totalRevenue: 0,
++      totalProfit: 0,
++    }
++  );
++
++  return {
++    season,
++    round,
++    results: finalResults,
++    totals,
++  };
++};
+diff --git a/epes-2025/engine/math.ts b/epes-2025/engine/math.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..24e0d94c45a83fbd924003ebe248bb13f9f4ce5d
+--- /dev/null
++++ b/epes-2025/engine/math.ts
+@@ -0,0 +1,153 @@
++import type { PublicTarget, SeasonParams, TeamDecision, WeightVector } from './types.js';
++
++export const clamp = (value: number, min: number, max: number) => {
++  if (Number.isNaN(value)) return min;
++  return Math.min(Math.max(value, min), max);
++};
++
++export const priceScore = (price: number, refPrice: number) => {
++  const safeRef = Math.max(refPrice, 0.01);
++  const denom = 0.5 * safeRef;
++  return clamp(1 - (price - safeRef) / denom, 0, 1);
++};
++
++export const marketingScore = (spend: number, boost = 0) => {
++  const safeSpend = Math.max(0, spend);
++  const raw = Math.log1p(safeSpend);
++  return clamp(((1 + boost) * raw) / 10, 0, 1);
++};
++
++export const tunedWeights = (base: WeightVector, target?: PublicTarget | null) => {
++  const deltas = target?.deltas ?? {};
++  return {
++    price: base.price + (deltas.price ?? 0),
++    quality: base.quality + (deltas.quality ?? 0),
++    marketing: base.marketing + (deltas.marketing ?? 0),
++    cx: base.cx + (deltas.cx ?? 0),
++  };
++};
++
++export const computeEA = (
++  weights: WeightVector,
++  team: TeamDecision,
++  refPrice: number,
++  publicTarget?: PublicTarget | null
++) => {
++  const priceComponent = priceScore(team.price, refPrice);
++  const marketingComponent = marketingScore(team.marketingSpend, publicTarget?.marketingBoost ?? 0);
++  const qualityComponent = clamp(team.quality / 100, 0, 1);
++  const cxComponent = clamp(team.cx / 100, 0, 1);
++
++  const eaLinear =
++    weights.price * priceComponent +
++    weights.quality * qualityComponent +
++    weights.marketing * marketingComponent +
++    weights.cx * cxComponent;
++
++  const ea = eaLinear * (1 + (team.launchEA ?? 0)) * (1 + (team.brandEA ?? 0));
++
++  return { eaLinear, ea, components: { priceComponent, qualityComponent, marketingComponent, cxComponent } };
++};
++
++export const softmax = (values: number[], beta: number) => {
++  if (values.length === 0) return [] as number[];
++  const safeBeta = Number.isFinite(beta) ? beta : 1;
++  const scaled = values.map((v) => v * safeBeta);
++  const max = Math.max(...scaled);
++  const expValues = scaled.map((v) => Math.exp(v - max));
++  const sum = expValues.reduce((acc, v) => acc + v, 0);
++  if (sum === 0) {
++    const equal = 1 / values.length;
++    return values.map(() => equal);
++  }
++  return expValues.map((v) => v / sum);
++};
++
++export const capShares = (shares: number[], cap?: number | null) => {
++  if (!shares.length) return shares;
++  if (cap === undefined || cap === null) return shares;
++  const safeCap = Math.max(0, Math.min(1, cap));
++  const result = new Array<number>(shares.length).fill(0);
++  const fixed = new Array<boolean>(shares.length).fill(false);
++  let remainingTotal = 1;
++  let iteration = 0;
++  while (iteration < shares.length + 1) {
++    iteration += 1;
++    const activeIndices = shares
++      .map((_, idx) => idx)
++      .filter((idx) => !fixed[idx]);
++    if (activeIndices.length === 0) break;
++    const activeSum = activeIndices.reduce((acc, idx) => acc + shares[idx], 0);
++    let cappedAny = false;
++    for (const idx of activeIndices) {
++      const proposed = (shares[idx] / activeSum) * remainingTotal;
++      if (proposed > safeCap + 1e-9) {
++        result[idx] = safeCap;
++        remainingTotal -= safeCap;
++        fixed[idx] = true;
++        cappedAny = true;
++      }
++    }
++    if (!cappedAny) {
++      for (const idx of activeIndices) {
++        result[idx] = (shares[idx] / activeSum) * remainingTotal;
++      }
++      break;
++    }
++  }
++  const filled = result.reduce((acc, val) => acc + val, 0);
++  if (filled < 1 - 1e-9) {
++    // distribute any remaining equally among active slots within cap (should be zero but guard for rounding)
++    const slack = 1 - filled;
++    const flexible = result.map((val, idx) => ({ idx, val })).filter((item) => !fixed[item.idx]);
++    const per = flexible.length ? slack / flexible.length : 0;
++    for (const item of flexible) {
++      result[item.idx] = Math.min(result[item.idx] + per, safeCap);
++    }
++  }
++  return result;
++};
++
++export const demandRaw = (
++  marketSize: number,
++  share: number,
++  price: number,
++  refPrice: number,
++  elasticity: number
++) => {
++  const safePrice = Math.max(price, 0.01);
++  const priceFactor = Math.pow(refPrice / safePrice, elasticity);
++  return marketSize * share * priceFactor;
++};
++
++export const unitCost = (team: TeamDecision, season: SeasonParams) => {
++  const { cvuBase, kQuality, kEfficiency } = season.costs;
++  const qualityFactor = (team.quality ?? 0) / 100;
++  const efficiencyFactor = (team.efficiency ?? 0) / 100;
++  const cost = cvuBase + kQuality * qualityFactor - kEfficiency * efficiencyFactor;
++  return Math.max(cost, 0);
++};
++
++export const windfallDamping = (profits: number[], alpha?: number | null) => {
++  const safeAlpha = alpha ?? 0;
++  if (safeAlpha <= 0 || profits.length === 0) return profits.slice();
++  const sorted = profits.slice().sort((a, b) => a - b);
++  const mid = Math.floor(sorted.length / 2);
++  const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
++  const deviations = profits.map((p) => Math.abs(p - median));
++  const sortedDev = deviations.slice().sort((a, b) => a - b);
++  const mad = sortedDev.length % 2 === 0
++    ? (sortedDev[sortedDev.length / 2 - 1] + sortedDev[sortedDev.length / 2]) / 2
++    : sortedDev[Math.floor(sortedDev.length / 2)];
++  const threshold = median + safeAlpha * mad;
++  return profits.map((p) => (p > threshold ? threshold + (p - threshold) * 0.5 : p));
++};
++
++export const splitProfit = (profit: number, reinvestRate: number) => {
++  if (profit <= 0) {
++    return { reinvest: 0, cashToFinal: 0 };
++  }
++  const reinvest = profit * reinvestRate;
++  const cashToFinal = profit - reinvest;
++  return { reinvest, cashToFinal };
++};
+diff --git a/epes-2025/engine/types.ts b/epes-2025/engine/types.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..270761b12215294a333d3282178af3b4134a1eb4
+--- /dev/null
++++ b/epes-2025/engine/types.ts
+@@ -0,0 +1,109 @@
++export interface WeightVector {
++  price: number;
++  quality: number;
++  marketing: number;
++  cx: number;
++}
++
++export interface SeasonCosts {
++  cvuBase: number;
++  kQuality: number;
++  kEfficiency: number;
++  fixedTeamCost: number;
++  benefitCost?: number;
++}
++
++export interface SeasonRules {
++  reinvestRate: number;
++}
++
++export interface SeasonParams {
++  refPrice: number;
++  softmaxBeta: number;
++  shareCap?: number | null;
++  noiseStd?: number | null;
++  dampingAlpha?: number | null;
++  weights: WeightVector;
++  costs: SeasonCosts;
++  rules: SeasonRules;
++}
++
++export interface PublicTarget {
++  id: string;
++  deltas: Partial<WeightVector>;
++  elasticity: number;
++  marketingBoost?: number;
++}
++
++export interface TeamDecision {
++  teamId: string;
++  name: string;
++  publicTargetId: string;
++  price: number;
++  marketingSpend: number;
++  capacity: number;
++  quality: number;
++  efficiency: number;
++  cx: number;
++  launchEA: number;
++  brandEA: number;
++  benefitChoice?: string | null;
++  benefitCostOverride?: number | null;
++  reinvestBudget: number;
++  cash: number;
++}
++
++export interface RoundInfo {
++  marketSize: number;
++  roundId: string;
++}
++
++export interface ComputeRoundInput {
++  season: SeasonParams;
++  publicTargets: PublicTarget[];
++  teams: TeamDecision[];
++  round: RoundInfo;
++}
++
++export interface TeamRoundResult {
++  teamId: string;
++  name: string;
++  publicTargetId: string;
++  eaLinear: number;
++  ea: number;
++  share: number;
++  demandRaw: number;
++  capacity: number;
++  sales: number;
++  revenue: number;
++  unitCost: number;
++  variableCost: number;
++  marketingCost: number;
++  fixedCost: number;
++  benefitCost: number;
++  profitRaw: number;
++  profit: number;
++  reinvest: number;
++  cashToFinal: number;
++  price: number;
++  marketingSpend: number;
++  flags: {
++    capacityBound: boolean;
++    priceRisk: boolean;
++    negativeProfit: boolean;
++  };
++}
++
++export interface ComputeRoundOutput {
++  season: SeasonParams;
++  round: RoundInfo;
++  results: TeamRoundResult[];
++  totals: {
++    marketSize: number;
++    totalShare: number;
++    totalDemand: number;
++    totalSales: number;
++    totalRevenue: number;
++    totalProfit: number;
++  };
++}
+diff --git a/epes-2025/package.json b/epes-2025/package.json
+index 00cfb23663b07c4df9464cb520f0c0f857055d96..ea76f46878a2ea18a70eac53de63e37eeca5b498 100644
+--- a/epes-2025/package.json
++++ b/epes-2025/package.json
+@@ -1,35 +1,39 @@
+ {
+   "name": "epes-2025",
+   "private": true,
+   "version": "0.0.0",
+   "type": "module",
+   "scripts": {
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "lint": "eslint .",
+-    "preview": "vite preview"
++    "preview": "vite preview",
++    "server:dev": "node server/index.mjs",
++    "server:start": "node server/index.mjs",
++    "test": "node tests/run-tests.js",
++    "test:watch": "node tests/run-tests.js"
+   },
+   "dependencies": {
+     "firebase": "^12.2.1",
+     "html-to-image": "^1.11.13",
+     "html2pdf.js": "^0.12.0",
+     "jspdf": "^3.0.2",
+     "jspdf-autotable": "^5.0.2",
+     "react": "^19.1.1",
+     "react-dom": "^19.1.1",
+     "react-router-dom": "^7.8.2",
+     "react-to-pdf": "^2.0.1",
+     "react-toastify": "^11.0.5"
+   },
+   "devDependencies": {
+     "@eslint/js": "^9.33.0",
+     "@types/react": "^19.1.10",
+     "@types/react-dom": "^19.1.7",
+     "@types/react-router-dom": "^5.3.3",
+     "@vitejs/plugin-react": "^5.0.1",
+     "eslint": "^9.33.0",
+     "eslint-plugin-react-hooks": "^5.2.0",
+     "eslint-plugin-react-refresh": "^0.4.20",
+     "globals": "^16.3.0",
+     "typescript": "~5.8.3",
+     "typescript-eslint": "^8.39.1",
+diff --git a/epes-2025/server/index.mjs b/epes-2025/server/index.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9606a4d3e0849e2baba3139053ddaaf38a4e7be8
+--- /dev/null
++++ b/epes-2025/server/index.mjs
+@@ -0,0 +1,130 @@
++#!/usr/bin/env node
++import http from 'node:http';
++import { execSync } from 'node:child_process';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++import path from 'node:path';
++
++const __filename = fileURLToPath(import.meta.url);
++const __dirname = path.dirname(__filename);
++const projectRoot = path.resolve(__dirname, '..');
++const buildPath = path.join(projectRoot, 'build', 'engine', 'index.js');
++
++function compileEngine() {
++  try {
++    execSync(`npx tsc -p ${path.join(projectRoot, 'tsconfig.engine.json')} --pretty false`, { stdio: 'inherit' });
++  } catch (error) {
++    console.error('Failed to compile engine:', error.message);
++    process.exit(1);
++  }
++}
++
++compileEngine();
++const engine = await import(pathToFileURL(buildPath).href);
++const { computeRound } = engine;
++
++const port = process.env.PORT ? Number(process.env.PORT) : 8080;
++
++const corsHeaders = {
++  'Access-Control-Allow-Origin': '*',
++  'Access-Control-Allow-Methods': 'POST, OPTIONS',
++  'Access-Control-Allow-Headers': 'Content-Type, Idempotency-Key',
++};
++
++function send(res, statusCode, data) {
++  const payload = JSON.stringify(data);
++  res.writeHead(statusCode, {
++    'Content-Type': 'application/json',
++    'Content-Length': Buffer.byteLength(payload),
++    ...corsHeaders,
++  });
++  res.end(payload);
++}
++
++function parseBody(req) {
++  return new Promise((resolve, reject) => {
++    const chunks = [];
++    req.on('data', (chunk) => chunks.push(chunk));
++    req.on('end', () => {
++      try {
++        const raw = Buffer.concat(chunks).toString('utf8');
++        const data = raw ? JSON.parse(raw) : {};
++        resolve(data);
++      } catch (error) {
++        reject(error);
++      }
++    });
++    req.on('error', reject);
++  });
++}
++
++function validateComputePayload(payload) {
++  if (!payload || typeof payload !== 'object') {
++    throw new Error('Body must be an object');
++  }
++  const { season, publicTargets, teams, round } = payload;
++  if (!season || typeof season !== 'object') throw new Error('season is required');
++  if (!Array.isArray(publicTargets)) throw new Error('publicTargets must be an array');
++  if (!Array.isArray(teams)) throw new Error('teams must be an array');
++  if (!round || typeof round !== 'object') throw new Error('round is required');
++  return { season, publicTargets, teams, round };
++}
++
++const server = http.createServer(async (req, res) => {
++  if (req.method === 'OPTIONS') {
++    res.writeHead(204, corsHeaders);
++    res.end();
++    return;
++  }
++
++  if (req.method !== 'POST') {
++    send(res, 405, { error: 'Method not allowed' });
++    return;
++  }
++
++  const url = new URL(req.url ?? '/', `http://${req.headers.host}`);
++
++  if (url.pathname === '/v1/compute') {
++    try {
++      const payload = await parseBody(req);
++      const input = validateComputePayload(payload);
++      const result = computeRound(input);
++      send(res, 200, result);
++    } catch (error) {
++      console.error('Compute error', error);
++      send(res, 400, { error: error.message ?? 'Invalid payload' });
++    }
++    return;
++  }
++
++  if (url.pathname === '/v1/close-round') {
++    try {
++      const idempotencyKey = req.headers['idempotency-key'];
++      const payload = await parseBody(req);
++      const input = validateComputePayload(payload);
++      const result = computeRound(input);
++      const totals = {
++        roundId: input.round.roundId,
++        idempotencyKey: idempotencyKey ?? null,
++        generatedAt: new Date().toISOString(),
++        totals: result.totals,
++        distribution: result.results.map((r) => ({
++          teamId: r.teamId,
++          profit: r.profit,
++          reinvest: r.reinvest,
++          cashToFinal: r.cashToFinal,
++        })),
++      };
++      send(res, 200, totals);
++    } catch (error) {
++      console.error('Close round error', error);
++      send(res, 400, { error: error.message ?? 'Invalid payload' });
++    }
++    return;
++  }
++
++  send(res, 404, { error: 'Not found' });
++});
++
++server.listen(port, () => {
++  console.log(`EPES engine API listening on port ${port}`);
++});
+diff --git a/epes-2025/src/hooks/useRoundPreview.ts b/epes-2025/src/hooks/useRoundPreview.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..86d3897198f74ffd36c0e8c758e69cfaf5dceddd
+--- /dev/null
++++ b/epes-2025/src/hooks/useRoundPreview.ts
+@@ -0,0 +1,202 @@
++import { useCallback, useEffect, useMemo, useState } from 'react';
++import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
++import { db } from '../services/firebase';
++
++export interface UseRoundPreviewParams {
++  seasonId: string;
++  roundId: string;
++  teamId: string;
++}
++
++export interface RoundPreviewResult {
++  loading: boolean;
++  error: string | null;
++  myTeam?: any;
++  ranking: any[];
++  totals: any | null;
++  refresh: () => Promise<void>;
++  season?: any;
++  round?: any;
++  teamDecision?: any;
++}
++
++const ENGINE_URL = import.meta.env.VITE_ENGINE_URL ?? 'http://localhost:8080';
++
++const ensureNumber = (value: unknown, fallback = 0) => {
++  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
++};
++
++export function useRoundPreview({ seasonId, roundId, teamId }: UseRoundPreviewParams): RoundPreviewResult {
++  const [loading, setLoading] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const [data, setData] = useState<{ ranking: any[]; myTeam?: any; totals: any | null; season?: any; round?: any; teamDecision?: any }>();
++
++  const fetchPreview = useCallback(async () => {
++    if (!seasonId || !roundId) {
++      setData(undefined);
++      return;
++    }
++    setLoading(true);
++    setError(null);
++    try {
++      const seasonRef = doc(db, 'seasons', seasonId);
++      const [seasonSnap, roundSnap, publicTargetsSnap, decisionsSnap] = await Promise.all([
++        getDoc(seasonRef),
++        getDoc(doc(seasonRef, 'rounds', roundId)),
++        getDocs(collection(seasonRef, 'publicTargets')),
++        getDocs(collection(seasonRef, 'rounds', roundId, 'teams')),
++      ]);
++
++      if (!seasonSnap.exists()) throw new Error('Temporada não encontrada');
++
++      const seasonData = seasonSnap.data() ?? {};
++      const roundData = roundSnap.exists() ? roundSnap.data() : {};
++
++      const publicTargets = publicTargetsSnap.docs.map((snap) => ({
++        id: snap.id,
++        ...(snap.data() as Record<string, unknown>),
++      })) as Array<{
++        id: string;
++        deltas?: Record<string, number>;
++        elasticity?: number;
++        marketingBoost?: number;
++      }>;
++
++      const teamDecisions = await Promise.all(
++        decisionsSnap.docs.map(async (snap) => {
++          const payload = snap.data() as Record<string, unknown>;
++          const teamDoc = await getDoc(doc(db, 'teams', snap.id));
++          const seasonTeamDoc = await getDoc(doc(seasonRef, 'teams', snap.id));
++          const meta = teamDoc.exists() ? teamDoc.data() : {};
++          const seasonMeta = seasonTeamDoc.exists() ? seasonTeamDoc.data() : {};
++          const benefitOverride =
++            typeof payload.benefitCostOverride === 'number'
++              ? payload.benefitCostOverride
++              : null;
++          return {
++            teamId: snap.id,
++            name: (meta?.name as string) ?? snap.id,
++            publicTargetId: (meta?.publicTargetId as string) ?? (payload.publicTargetId as string) ?? '',
++            price: ensureNumber(payload.price, seasonData.refPrice ?? 0),
++            marketingSpend: ensureNumber(payload.marketingSpend, 0),
++            capacity: ensureNumber(payload.capacity, 0),
++            quality: ensureNumber(payload.quality, 0),
++            efficiency: ensureNumber(payload.efficiency, 0),
++            cx: ensureNumber(payload.cx, 0),
++            launchEA: ensureNumber(payload.launchEA, 0),
++            brandEA: ensureNumber(payload.brandEA, 0),
++            benefitChoice: payload.benefitChoice ?? null,
++            benefitCostOverride: benefitOverride,
++            reinvestBudget: ensureNumber(seasonMeta?.reinvestBudget, 0),
++            cash: ensureNumber(seasonMeta?.cash, 0),
++            decision: payload,
++            seasonMeta,
++          };
++        })
++      );
++
++      if (teamDecisions.length === 0) {
++        setData({
++          ranking: [],
++          myTeam: undefined,
++          totals: null,
++          season: seasonData,
++          round: { marketSize: ensureNumber(roundData?.marketSize, 0), roundId },
++          teamDecision: undefined,
++        });
++        setLoading(false);
++        return;
++      }
++
++      const seasonRefPrice = ensureNumber(seasonData.refPrice, 0);
++      const computePayload = {
++        season: {
++          refPrice: seasonRefPrice,
++          softmaxBeta: ensureNumber(seasonData.softmaxBeta, 1),
++          shareCap: seasonData.shareCap ?? null,
++          dampingAlpha: seasonData.dampingAlpha ?? null,
++          weights: seasonData.weights ?? { price: 0, quality: 0, marketing: 0, cx: 0 },
++          costs: seasonData.costs ?? { cvuBase: 0, kQuality: 0, kEfficiency: 0, fixedTeamCost: 0, benefitCost: 0 },
++          rules: seasonData.rules ?? { reinvestRate: 0.2 },
++        },
++        publicTargets: publicTargets.map((target) => ({
++          id: target.id,
++          deltas: target.deltas ?? {},
++          elasticity: ensureNumber(target.elasticity, 1),
++          marketingBoost: ensureNumber(target.marketingBoost, 0),
++        })),
++        teams: teamDecisions.map((team) => ({
++          teamId: team.teamId,
++          name: team.name,
++          publicTargetId: team.publicTargetId,
++          price: ensureNumber(team.price, seasonRefPrice),
++          marketingSpend: ensureNumber(team.marketingSpend, 0),
++          capacity: ensureNumber(team.capacity, 0),
++          quality: ensureNumber(team.quality, 0),
++          efficiency: ensureNumber(team.efficiency, 0),
++          cx: ensureNumber(team.cx, 0),
++          launchEA: ensureNumber(team.launchEA, 0),
++          brandEA: ensureNumber(team.brandEA, 0),
++          benefitChoice: team.benefitChoice ?? null,
++          benefitCostOverride: typeof team.benefitCostOverride === 'number' ? team.benefitCostOverride : null,
++          reinvestBudget: ensureNumber(team.reinvestBudget, 0),
++          cash: ensureNumber(team.cash, 0),
++        })),
++        round: {
++          marketSize: ensureNumber(roundData?.marketSize, 0),
++          roundId,
++          startAt: roundData?.startAt ?? null,
++          lockAt: roundData?.lockAt ?? null,
++        },
++      };
++
++      const response = await fetch(`${ENGINE_URL}/v1/compute`, {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify(computePayload),
++      });
++
++      if (!response.ok) {
++        const msg = await response.text();
++        throw new Error(msg || 'Erro ao calcular rodada');
++      }
++
++      const result = await response.json();
++      const ranking = Array.isArray(result.results) ? result.results : [];
++      const myTeam = ranking.find((item: any) => item.teamId === teamId);
++      const teamDecision = teamDecisions.find((t) => t.teamId === teamId);
++
++      setData({
++        ranking,
++        myTeam,
++        totals: result.totals ?? null,
++        season: computePayload.season,
++        round: computePayload.round,
++        teamDecision,
++      });
++    } catch (err) {
++      console.error(err);
++      setError((err as Error).message ?? 'Erro inesperado');
++    } finally {
++      setLoading(false);
++    }
++  }, [seasonId, roundId, teamId]);
++
++  useEffect(() => {
++    void fetchPreview();
++  }, [fetchPreview]);
++
++  const memoized = useMemo(() => ({
++    loading,
++    error,
++    myTeam: data?.myTeam,
++    ranking: data?.ranking ?? [],
++    totals: data?.totals ?? null,
++    refresh: fetchPreview,
++    season: data?.season,
++    round: data?.round,
++    teamDecision: data?.teamDecision,
++  }), [loading, error, data, fetchPreview]);
++
++  return memoized;
++}
+diff --git a/epes-2025/src/pages/DecisionPage.css b/epes-2025/src/pages/DecisionPage.css
+index 297d772c00a1c370cffe0c6f45dc65b97f9a14af..762182cc3b96433616767404d24428dc99776942 100644
+--- a/epes-2025/src/pages/DecisionPage.css
++++ b/epes-2025/src/pages/DecisionPage.css
+@@ -1,118 +1,160 @@
+-/* Container principal */
+-.decision-container {
+-  padding: 2rem;
+-  max-width: 800px;
++.decision-page {
++  max-width: 1080px;
+   margin: 0 auto;
+-  font-family: "Segoe UI", sans-serif;
+-  color: #333;
++  padding: 2rem 1.5rem 4rem;
++  font-family: 'Segoe UI', Arial, sans-serif;
++  color: #1f2933;
++  display: flex;
++  flex-direction: column;
++  gap: 1.5rem;
+ }
+ 
+-/* Título principal */
+-.decision-container h2 {
++.decision-header {
++  display: flex;
++  flex-direction: column;
++  gap: 0.5rem;
++}
++
++.decision-header h1 {
+   font-size: 2rem;
+-  margin-bottom: 2rem;
+-  color: #2e7d32;
+-  text-align: center;
+-}
+-
+-/* Bloco de decisão */
+-.decision-block {
+-  margin-bottom: 1.5rem;
+-  padding: 1rem;
+-  background-color: #f9f9f9;
+-  border-left: 4px solid #4caf50;
+-  border-radius: 6px;
+-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+-}
+-
+-/* Labels e selects */
+-.decision-block label {
+-  font-weight: bold;
+-  display: block;
+-  margin-bottom: 0.5rem;
+-  font-size: 1rem;
+-  color: #444;
++  margin: 0;
++  color: #14532d;
+ }
+ 
+-.decision-block select {
+-  width: 100%;
+-  padding: 0.6rem;
+-  font-size: 1rem;
+-  border-radius: 4px;
+-  border: 1px solid #ccc;
+-  background-color: #fff;
++.decision-card {
++  background: #ffffff;
++  border-radius: 12px;
++  padding: 1.5rem;
++  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
++  border: 1px solid rgba(20, 83, 45, 0.08);
+ }
+ 
+-/* Indicadores */
+-.decision-container h3 {
+-  font-size: 1.4rem;
+-  margin-top: 2rem;
++.decision-card h2 {
++  margin-top: 0;
+   margin-bottom: 1rem;
+-  color: #333;
+-  border-bottom: 2px solid #4caf50;
+-  padding-bottom: 0.5rem;
++  font-size: 1.25rem;
++  color: #0f172a;
++}
++
++.decision-grid {
++  display: grid;
++  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
++  gap: 1rem 1.5rem;
+ }
+ 
+-.indicators {
+-  margin-top: 1rem;
+-  padding: 1rem;
+-  background-color: #eef6f0;
+-  border-radius: 6px;
+-  border: 1px solid #cce0d4;
+-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
++.decision-grid label {
++  display: flex;
++  flex-direction: column;
++  font-weight: 600;
++  font-size: 0.95rem;
++  color: #1f2933;
++  gap: 0.35rem;
+ }
+ 
+-.indicators p {
+-  margin: 0.5rem 0;
+-  font-weight: 500;
++.decision-grid input,
++.decision-grid select {
++  border-radius: 8px;
++  border: 1px solid #cbd5f5;
++  padding: 0.65rem 0.75rem;
+   font-size: 1rem;
++  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+ }
+ 
+-/* Alertas */
+-.alert {
+-  margin-top: 1rem;
+-  padding: 0.8rem;
+-  border-radius: 6px;
+-  font-weight: bold;
+-  font-size: 0.95rem;
+-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
++.decision-grid input:focus,
++.decision-grid select:focus {
++  outline: none;
++  border-color: #15803d;
++  box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15);
+ }
+ 
+-.alert.red {
+-  background-color: #ffe5e5;
+-  color: #c62828;
++.hint {
++  font-size: 0.8rem;
++  color: #64748b;
+ }
+ 
+-.alert.green {
+-  background-color: #e6f4ea;
+-  color: #2e7d32;
++.error {
++  color: #b91c1c;
++  font-size: 0.85rem;
++  margin-top: 0.25rem;
+ }
+ 
+-.alert.gray {
+-  background-color: #f0f0f0;
+-  color: #666;
++.decision-actions {
++  display: flex;
++  flex-wrap: wrap;
++  gap: 1rem;
++  justify-content: flex-end;
+ }
+ 
+-/* Botão de salvar */
+-.save-button {
+-  margin-top: 2rem;
+-  padding: 1rem 2rem;
+-  font-size: 1rem;
+-  background-color: #4caf50;
+-  color: white;
++.decision-actions button {
+   border: none;
+-  border-radius: 6px;
++  border-radius: 999px;
++  padding: 0.8rem 1.8rem;
++  font-size: 1rem;
+   cursor: pointer;
+-  transition: background-color 0.3s ease;
+-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
++  transition: transform 0.2s ease, box-shadow 0.2s ease;
++  background: #e2e8f0;
++  color: #1f2933;
+ }
+ 
+-.save-button:hover:not(:disabled) {
+-  background-color: #43a047;
++.decision-actions button.primary {
++  background: linear-gradient(135deg, #22c55e, #15803d);
++  color: #ffffff;
++  box-shadow: 0 10px 25px rgba(34, 197, 94, 0.25);
+ }
+ 
+-.save-button:disabled {
+-  background-color: #ccc;
++.decision-actions button:disabled {
+   cursor: not-allowed;
+   opacity: 0.6;
++  box-shadow: none;
++}
++
++.decision-actions button:not(:disabled):hover {
++  transform: translateY(-2px);
++  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.15);
++}
++
++.preview-grid {
++  display: grid;
++  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
++  gap: 0.75rem 1.5rem;
++  font-size: 0.95rem;
++}
++
++.preview-grid div {
++  background: #f8fafc;
++  border-radius: 10px;
++  padding: 0.9rem;
++  border: 1px solid rgba(148, 163, 184, 0.3);
++}
++
++.ranking-table {
++  width: 100%;
++  border-collapse: collapse;
++  font-size: 0.95rem;
++}
++
++.ranking-table thead tr {
++  background: rgba(15, 23, 42, 0.05);
++}
++
++.ranking-table th,
++.ranking-table td {
++  padding: 0.75rem 1rem;
++  text-align: left;
++  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
++}
++
++.ranking-table .highlight {
++  background: rgba(34, 197, 94, 0.15);
++  font-weight: 600;
++}
++
++@media (max-width: 768px) {
++  .decision-page {
++    padding: 1.5rem 1rem 3rem;
++  }
++
++  .decision-actions {
++    justify-content: center;
++  }
+ }
+diff --git a/epes-2025/src/pages/DecisionsPage.tsx b/epes-2025/src/pages/DecisionsPage.tsx
+index 9af03f0ecb8e81a9107f23457a8b9e67c7ea1ced..0048ae9ba323b49a04039c29b4f377cf98a20b3a 100644
+--- a/epes-2025/src/pages/DecisionsPage.tsx
++++ b/epes-2025/src/pages/DecisionsPage.tsx
+@@ -1,455 +1,366 @@
+-import React, { useEffect, useMemo, useState } from "react";
+-import { db, auth } from "../services/firebase";
++import { useEffect, useMemo, useState } from 'react';
++import { useNavigate } from 'react-router-dom';
+ import {
+   doc,
+   getDoc,
++  serverTimestamp,
+   setDoc,
+-} from "firebase/firestore";
+-import { calcularRodada } from "../services/calcularRodadas";
+-import { useNavigate } from "react-router-dom";
+-import "./DecisionPage.css";
++} from 'firebase/firestore';
++import { toast } from 'react-toastify';
++import { db } from '../services/firebase';
++import { useRoundPreview } from '../hooks/useRoundPreview';
++import './DecisionPage.css';
++
++interface DecisionFormState {
++  price: number;
++  marketingSpend: number;
++  capacity: number;
++  quality: number;
++  efficiency: number;
++  cx: number;
++  launchEA: number;
++  brandEA: number;
++  benefitChoice: string | null;
++}
+ 
+-export default function DecisionPage() {
++const DEFAULT_DECISION: DecisionFormState = {
++  price: 0,
++  marketingSpend: 0,
++  capacity: 0,
++  quality: 50,
++  efficiency: 50,
++  cx: 50,
++  launchEA: 0,
++  brandEA: 0,
++  benefitChoice: null,
++};
++
++const ensureNumber = (value: unknown, fallback = 0) =>
++  typeof value === 'number' && Number.isFinite(value) ? value : fallback;
++
++const DecisionPage = () => {
+   const navigate = useNavigate();
++  const [seasonId, setSeasonId] = useState('');
++  const [roundId, setRoundId] = useState('');
++  const [teamId, setTeamId] = useState('');
++  const [form, setForm] = useState<DecisionFormState>(DEFAULT_DECISION);
++  const [baseAttributes, setBaseAttributes] = useState({ quality: 50, efficiency: 50, cx: 50 });
++  const [loadingDecision, setLoadingDecision] = useState(false);
+ 
+-  const [publicoAlvo, setPublicoAlvo] = useState("");
+-  const [membros, setMembros] = useState<{ uid: string; role?: string; isCapitao?: boolean }[]>([]);
+-  const [rodadaAtiva, setRodadaAtiva] = useState(false);
+-  const [rodadaAtual, setRodadaAtual] = useState(1);
+-  const [tempoRestante, setTempoRestante] = useState("");
+-  const [mensagemCapitao, setMensagemCapitao] = useState("");
+-  const [uid, setUid] = useState("");
+-  const [isCapitao, setIsCapitao] = useState(false);
+-
+-  // marketSize e orçamento dinâmico
+-  const [marketSize, setMarketSize] = useState<number>(10000);
+-  const [orcamentoRodada, setOrcamentoRodada] = useState<number>(500000);
+-
+-  const codigoTurma = localStorage.getItem("codigoTurma") ?? "";
+-  const timeIdLS = localStorage.getItem("idDoTime") ?? "";
+-
+-  // --------- auth + capitao ---------
+-  useEffect(() => {
+-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+-      if (user?.uid) {
+-        setUid(user.uid);
+-        if (!codigoTurma) return;
+-
+-        const timeRef = doc(db, "times", codigoTurma);
+-        const timeSnap = await getDoc(timeRef);
+-        const timeData: any = timeSnap.data();
+-
+-        const isOwner = timeData?.criadoPor === user.uid;
+-        const isMemberCaptain = Array.isArray(timeData?.membros)
+-          ? timeData.membros.some(
+-              (m: any) =>
+-                m?.uid === user.uid &&
+-                m?.status === "aprovado" &&
+-                (m?.role === "capitao" || m?.isCapitao === true)
+-            )
+-          : false;
+-
+-        setIsCapitao(!!(isOwner || isMemberCaptain));
+-      }
+-    });
+-    return () => unsubscribe();
+-  }, [codigoTurma]);
+-
+-  // --------- estados de decisão -----------
+-  // PREÇO: mantém estrutura, mas com select fixo
+-  const opcoesPreco = [70, 90, 100, 110, 120];
+-  const [preco, setPreco] = useState<number>(100);
+-
+-  const [produtoIndex, setProdutoIndex] = useState(0);
+-  const [marketingIndex, setMarketingIndex] = useState(0);
+-  const [capacidadeIndex, setCapacidadeIndex] = useState(1);
+-  const [equipeIndex, setEquipeIndex] = useState(0);
+-  const [marcaProtegida, setMarcaProtegida] = useState(false);
+-  const [beneficioIndex, setBeneficioIndex] = useState(3);
+-
+-  const produtoOpcoes = ["Básico", "Intermediário", "Avançado", "Premium"];
+-  const marketingOpcoes = ["Local", "Regional", "Nacional", "Nacional + Influenciadores"];
+-  const capacidadeOpcoes = ["500 unidades", "1.000 unidades", "2.000 unidades", "3.000 unidades"];
+-  const equipeOpcoes = ["Enxuto", "Balanceado", "Reforçado", "Especializado"];
+-  const beneficioOpcoes = ["Cupom", "Brinde", "Frete grátis", "Nenhum"];
+-
+-  const qualidade = [10, 20, 35, 50][produtoIndex];
+-  const marketingBonus = [8, 15, 25, 35][marketingIndex];
+-  const capacidade = [500, 1000, 2000, 3000][capacidadeIndex];
+-  const equipeBonus = [5, 15, 25, 30][equipeIndex];
+-  const beneficioBonus = [10, 15, 20, 0][beneficioIndex];
+-  const custoProtecao = marcaProtegida ? 80000 : 0;
+-
+-  const totalUsado =
+-    [50000, 100000, 200000, 300000][produtoIndex] +
+-    [50000, 100000, 200000, 300000][marketingIndex] +
+-    [50000, 100000, 200000, 300000][capacidadeIndex] +
+-    [50000, 100000, 200000, 300000][equipeIndex] +
+-    [50000, 80000, 100000, 0][beneficioIndex] +
+-    custoProtecao;
+-
+-  const caixaRestante = orcamentoRodada - totalUsado;
+-  const passouDoLimite = caixaRestante < 0;
+-
+-  const formatar = (valor: number) => new Intl.NumberFormat("pt-BR").format(valor);
+-
+-  // --------- carregar empresa + geral + orcamento dinâmico ----------
+   useEffect(() => {
+-    const carregar = async () => {
+-      const empresaRef = doc(db, "empresas", codigoTurma);
+-      const geralRef = doc(db, "configuracoes", "geral");
+-
+-      const [empresaSnap, geralSnap] = await Promise.all([getDoc(empresaRef), getDoc(geralRef)]);
+-      const empresaData: any = empresaSnap.data();
+-      const geralData: any = geralSnap.data();
+-
+-      if (empresaData?.publicoAlvo) setPublicoAlvo(empresaData.publicoAlvo);
+-      if (empresaData?.membros) setMembros(empresaData.membros);
+-
+-      setRodadaAtiva(geralData?.rodadaAtiva === true);
+-      setRodadaAtual(geralData?.rodadaAtual ?? 1);
+-
+-      setMarketSize(typeof geralData?.marketSize === "number" ? Number(geralData.marketSize) : 10000);
+-
+-      // orçamento = 500k + soma(reinvestimento oficial) das rodadas anteriores
+-      await calcularOrcamentoDinamico(geralData?.rodadaAtual ?? 1);
+-    };
++    const storedTeam = localStorage.getItem('idDoTime');
++    if (!storedTeam) {
++      toast.error('Nenhum time selecionado. Escolha um time antes de enviar decisões.');
++      navigate('/escolher-time');
++      return;
++    }
++    setTeamId(storedTeam);
+ 
+-    const calcularOrcamentoDinamico = async (rodadaAtualServer: number) => {
++    (async () => {
++      setLoadingDecision(true);
+       try {
+-        const tId = localStorage.getItem("idDoTime");
+-        if (!tId) {
+-          setOrcamentoRodada(500000);
+-          return;
+-        }
+-
+-        let somaReinvest = 0;
+-        for (let r = 1; r < rodadaAtualServer; r++) {
+-          const docRef = doc(db, "resultadosOficiais", tId, `rodada${r}`, "oficial");
+-          const snap = await getDoc(docRef);
+-          if (snap.exists()) {
+-            const d: any = snap.data();
+-            const reinv = Number(d?.reinvestimento ?? 0);
+-            if (!isNaN(reinv)) somaReinvest += reinv;
+-          }
++        const geralSnap = await getDoc(doc(db, 'configuracoes', 'geral'));
++        const geral = geralSnap.data() ?? {};
++        const season = (geral.seasonId as string) ?? 'default-season';
++        const rodadaNumero = Number(geral.rodadaAtual ?? 1);
++        setSeasonId(season);
++        setRoundId(`D${rodadaNumero}`);
++
++        const decisionRef = doc(db, 'seasons', season, 'rounds', `D${rodadaNumero}`, 'teams', storedTeam);
++        const decisionSnap = await getDoc(decisionRef);
++        if (decisionSnap.exists()) {
++          const data = decisionSnap.data() as Record<string, unknown>;
++          setForm({
++            price: ensureNumber(data.price, DEFAULT_DECISION.price),
++            marketingSpend: ensureNumber(data.marketingSpend, DEFAULT_DECISION.marketingSpend),
++            capacity: ensureNumber(data.capacity, DEFAULT_DECISION.capacity),
++            quality: ensureNumber(data.quality, DEFAULT_DECISION.quality),
++            efficiency: ensureNumber(data.efficiency, DEFAULT_DECISION.efficiency),
++            cx: ensureNumber(data.cx, DEFAULT_DECISION.cx),
++            launchEA: ensureNumber(data.launchEA, DEFAULT_DECISION.launchEA),
++            brandEA: ensureNumber(data.brandEA, DEFAULT_DECISION.brandEA),
++            benefitChoice: (data.benefitChoice as string) ?? DEFAULT_DECISION.benefitChoice,
++          });
++          setBaseAttributes({
++            quality: ensureNumber(data.quality, 50),
++            efficiency: ensureNumber(data.efficiency, 50),
++            cx: ensureNumber(data.cx, 50),
++          });
+         }
+-        setOrcamentoRodada(500000 + somaReinvest);
+-      } catch {
+-        setOrcamentoRodada(500000);
++      } catch (error) {
++        console.error(error);
++        toast.error('Erro ao carregar decisão atual.');
++      } finally {
++        setLoadingDecision(false);
+       }
+-    };
++    })();
++  }, [navigate]);
+ 
+-    carregar();
+-  }, [codigoTurma]);
++  const preview = useRoundPreview({ seasonId, roundId, teamId });
++  const refPrice = preview.season?.refPrice ?? 100;
++  const reinvestBudget = ensureNumber(preview.myTeam?.reinvestBudget ?? preview.teamDecision?.reinvestBudget, 0);
++  const minPrice = Number((refPrice * 0.8).toFixed(2));
++  const maxPrice = Number((refPrice * 1.2).toFixed(2));
+ 
+-  // --------- cronômetro 23:59 ----------
+   useEffect(() => {
+-    if (!rodadaAtiva) return;
+-    const atualizarTempo = () => {
+-      const agora = new Date();
+-      const fim = new Date();
+-      fim.setHours(23, 59, 0, 0);
+-      const diff = Math.max(0, fim.getTime() - agora.getTime());
+-      const horas = Math.floor(diff / 3600000);
+-      const minutos = Math.floor((diff % 3600000) / 60000);
+-      setTempoRestante(`${horas}h ${minutos}m`);
+-    };
+-    atualizarTempo();
+-    const interval = setInterval(atualizarTempo, 60000);
+-    return () => clearInterval(interval);
+-  }, [rodadaAtiva]);
+-
+-  // --------- PREVIEW local ----------
+-  const resultado = useMemo(
+-    () =>
+-      calcularRodada({
+-        preco,               // agora variável
+-        qualidade,
+-        marketingBonus,
+-        equipeBonus,
+-        beneficioBonus,
+-        capacidade,
+-        publicoAlvo,
+-        caixaAcumulado: 0,
+-        marketSize,          // vem do Firestore
+-      }),
+-    [
+-      preco,
+-      qualidade,
+-      marketingBonus,
+-      equipeBonus,
+-      beneficioBonus,
+-      capacidade,
+-      publicoAlvo,
+-      marketSize,
+-    ]
+-  );
+-
+-  const vendasEstimadas = useMemo(() => {
+-    const demanda = Number.isFinite(resultado.demanda) ? resultado.demanda : 0;
+-    return Math.min(demanda, capacidade, marketSize);
+-  }, [resultado.demanda, capacidade, marketSize]);
++    if (form.price === 0 && refPrice > 0) {
++      setForm((prev) => ({ ...prev, price: refPrice }));
++    }
++  }, [refPrice, form.price]);
++
++  const upgradeCost = useMemo(() => {
++    const deltaQuality = Math.max(0, form.quality - baseAttributes.quality);
++    const deltaEfficiency = Math.max(0, form.efficiency - baseAttributes.efficiency);
++    const deltaCx = Math.max(0, form.cx - baseAttributes.cx);
++    const costPerPoint = 100;
++    return (deltaQuality + deltaEfficiency + deltaCx) * costPerPoint;
++  }, [form.quality, form.efficiency, form.cx, baseAttributes]);
++
++  const isPriceValid = form.price >= minPrice && form.price <= maxPrice;
++  const isUpgradeAffordable = upgradeCost <= reinvestBudget + 1e-6;
++  const formValid =
++    isPriceValid &&
++    isUpgradeAffordable &&
++    !preview.loading &&
++    !loadingDecision &&
++    teamId.length > 0;
++
++  const updateField = <K extends keyof DecisionFormState>(key: K, value: DecisionFormState[K]) => {
++    setForm((prev) => ({ ...prev, [key]: value }));
++  };
+ 
+-  // --------- salvar decisão ----------
+-  const salvarDecisao = async () => {
++  const handleSave = async () => {
++    if (!formValid) {
++      toast.error('Revise os campos antes de salvar.');
++      return;
++    }
+     try {
+-      const timeId = localStorage.getItem("idDoTime");
+-
+-      const geralRef = doc(db, "configuracoes", "geral");
+-      const geralSnap = await getDoc(geralRef);
+-      const rodadaAtualServer = geralSnap.data()?.rodadaAtual ?? 1;
+-
+-      if (!isCapitao) {
+-        setMensagemCapitao("🔒 Apenas o capitão pode enviar a decisão final.");
+-        return;
+-      }
+-      if (!rodadaAtiva || passouDoLimite) return;
+-
+-      if (!uid || !codigoTurma || !timeId || uid.trim() === "" || timeId.trim() === "") {
+-        setMensagemCapitao("⚠️ Informações incompletas. Verifique login e se você escolheu um time.");
+-        return;
+-      }
+-
+-      // 1 por rodada (por capitão/time)
+-      const decisaoId = `${codigoTurma}_rodada${rodadaAtualServer}_${uid}`;
+-      const decisaoRef = doc(db, "decisoes", decisaoId);
+-      const jaTem = await getDoc(decisaoRef);
+-      if (jaTem.exists()) {
+-        setMensagemCapitao("🔒 Esta equipe já enviou a decisão desta rodada.");
+-        return;
+-      }
+-
+-      const dados = {
+-        produto: produtoOpcoes[produtoIndex],
+-        marketing: marketingOpcoes[marketingIndex],
+-        capacidade,
+-        equipe: equipeOpcoes[equipeIndex],
+-        marca: marcaProtegida,
+-        beneficio: beneficioOpcoes[beneficioIndex],
+-
+-        preco, // << selecionado
+-
+-        totalUsado,
+-        caixaRestante,
+-        publicoAlvo,
+-
+-        // preview (sem concorrência)
+-        ea: resultado.ea ?? 0,
+-        share: resultado.share ?? 0,
+-        demanda: resultado.demanda ?? 0,
+-        receita: resultado.receita ?? 0,
+-        custo: resultado.custo ?? 0,
+-        lucro: resultado.lucro ?? 0,
+-        reinvestimento: resultado.reinvestimento ?? 0,
+-        caixaFinal: resultado.caixaFinal ?? 0,
+-        satisfacao: resultado.satisfacao ?? 0,
+-
+-        // extras
+-        vendasPreview: vendasEstimadas,
+-        marketSizeUsado: marketSize,
+-        orcamentoUsado: orcamentoRodada,
+-
+-        timestamp: new Date(),
+-        codigoTurma,
+-        uid,
+-        timeId,
+-        status: "✅",
+-      };
+-
+-      // grava em "decisoes"
+-      await setDoc(decisaoRef, dados);
+-
+-      // grava sub da rodada (auditoria)
+-      await setDoc(doc(db, "rodadas", codigoTurma, `rodada${rodadaAtualServer}`, uid), {
+-        timeId,
+-        ea: resultado.ea,
+-        demanda: resultado.demanda,
+-        receita: resultado.receita,
+-        custo: resultado.custo,
+-        lucro: resultado.lucro,
+-        reinvestimento: resultado.reinvestimento,
+-        caixaFinal: resultado.caixaFinal,
+-        satisfacao: resultado.satisfacao,
+-        atraso: false,
+-        status: "✅",
+-        timestamp: new Date(),
+-        marketSizeUsado: marketSize,
+-      });
+-
+-      // espelho flat opcional
+-      await setDoc(doc(db, "rodadas", `${codigoTurma}_rodada${rodadaAtualServer}_${uid}`), dados);
+-
+-      setMensagemCapitao("✅ Decisão salva com sucesso!");
+-      setTimeout(() => navigate("/dashboard"), 600);
+-    } catch (err) {
+-      console.error("Erro ao salvar decisão:", err);
+-      setMensagemCapitao("❌ Erro ao salvar decisão. Tente novamente.");
++      if (!seasonId || !roundId) throw new Error('Configuração da rodada ausente.');
++      const decisionRef = doc(db, 'seasons', seasonId, 'rounds', roundId, 'teams', teamId);
++      await setDoc(decisionRef, {
++        ...form,
++        upgradeCost,
++        updatedAt: serverTimestamp(),
++      }, { merge: true });
++      toast.success('Decisão salva com sucesso!');
++      await preview.refresh();
++    } catch (error) {
++      console.error(error);
++      toast.error('Erro ao salvar decisão.');
+     }
+   };
+ 
+-  return (
+-    <div className="decision-container">
+-      <h2>📊 Decisões Estratégicas</h2>
+-
+-      <p style={{ marginTop: 4, color: "#666" }}>
+-        🧮 Mercado desta rodada: {marketSize.toLocaleString("pt-BR")} consumidores
+-      </p>
+-      <p style={{ marginTop: 2, color: "#444" }}>
+-        💼 Orçamento disponível: R$ {orcamentoRodada.toLocaleString("pt-BR")}
+-      </p>
+-
+-      {/* PREÇO (mantendo estrutura: label + select) */}
+-      <div className="decision-block">
+-        <label>💵 Preço:</label>
+-        <select value={preco} onChange={(e) => setPreco(Number(e.target.value))}>
+-          {opcoesPreco.map((p) => (
+-            <option key={p} value={p}>
+-              R$ {p}
+-            </option>
+-          ))}
+-        </select>
+-      </div>
+-
+-      <div className="decision-block">
+-        <label>🔬 Produto & P&D:</label>
+-        <select value={produtoIndex} onChange={(e) => setProdutoIndex(Number(e.target.value))}>
+-          {produtoOpcoes.map((op, i) => (
+-            <option key={i} value={i}>{op}</option>
+-          ))}
+-        </select>
+-      </div>
+-
+-      <div className="decision-block">
+-        <label>📢 Marketing & Branding:</label>
+-        <select value={marketingIndex} onChange={(e) => setMarketingIndex(Number(e.target.value))}>
+-          {marketingOpcoes.map((op, i) => (
+-            <option key={i} value={i}>{op}</option>
+-          ))}
+-        </select>
+-      </div>
+-
+-      <div className="decision-block">
+-        <label>🏭 Capacidade Operacional:</label>
+-        <select value={capacidadeIndex} onChange={(e) => setCapacidadeIndex(Number(e.target.value))}>
+-          {capacidadeOpcoes.map((op, i) => (
+-            <option key={i} value={i}>{op}</option>
+-          ))}
+-        </select>
+-      </div>
+-
+-      <div className="decision-block">
+-        <label>👥 Equipe & Treinamento:</label>
+-        <select value={equipeIndex} onChange={(e) => setEquipeIndex(Number(e.target.value))}>
+-          {equipeOpcoes.map((op, i) => (
+-            <option key={i} value={i}>{op}</option>
+-          ))}
+-        </select>
+-      </div>
+-
+-      <div className="decision-block">
+-        <label>🛡️ Proteção de Marca:</label>
+-        <select value={marcaProtegida ? "sim" : "nao"} onChange={(e) => setMarcaProtegida(e.target.value === "sim")}>
+-          <option value="sim">Sim</option>
+-          <option value="nao">Não</option>
+-        </select>
+-      </div>
+-
+-      <div className="decision-block">
+-        <label>🎁 Benefício de Lançamento:</label>
+-        <select value={beneficioIndex} onChange={(e) => setBeneficioIndex(Number(e.target.value))}>
+-          {beneficioOpcoes.map((op, i) => (
+-            <option key={i} value={i}>{op}</option>
+-          ))}
+-        </select>
+-      </div>
+-
+-      <p><strong>💸 Total usado:</strong> R$ {formatar(totalUsado)}</p>
+-      <p><strong>🧮 Caixa restante:</strong> R$ {formatar(caixaRestante)}</p>
++  const handlePreview = async () => {
++    await preview.refresh();
++  };
+ 
+-      <h3 style={{ marginTop: "2rem" }}>📋 Resumo das Decisões</h3>
+-      <div className="indicators">
+-        <p>
+-          📈 <span
+-            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+-            onClick={() => window.alert("Efeito de atratividade: representa o quanto sua oferta é atrativa para o público-alvo.")}
+-          >
+-            EA
+-          </span>: {resultado.ea}
++  return (
++    <div className="decision-page">
++      <header className="decision-header">
++        <h1>Planejamento da Rodada</h1>
++        <div>
++          <strong>Rodada:</strong> {roundId || 'Carregando...'} • <strong>Time:</strong> {teamId || 'N/D'}
++        </div>
++      </header>
++
++      <section className="decision-card">
++        <h2>Parâmetros comerciais</h2>
++        <div className="decision-grid">
++          <label>
++            Preço (R$)
++            <input
++              type="number"
++              value={form.price}
++              min={minPrice}
++              max={maxPrice}
++              step={0.5}
++              onChange={(event) => updateField('price', Number(event.target.value))}
++            />
++            <span className="hint">Faixa permitida: {minPrice.toFixed(2)} – {maxPrice.toFixed(2)}</span>
++            {!isPriceValid && <span className="error">Preço deve respeitar ±20% do preço de referência.</span>}
++          </label>
++
++          <label>
++            Marketing (R$)
++            <input
++              type="number"
++              value={form.marketingSpend}
++              min={0}
++              step={1000}
++              onChange={(event) => updateField('marketingSpend', Math.max(0, Number(event.target.value)))}
++            />
++          </label>
++
++          <label>
++            Capacidade (unid)
++            <input
++              type="number"
++              value={form.capacity}
++              min={0}
++              step={100}
++              onChange={(event) => updateField('capacity', Math.max(0, Number(event.target.value)))}
++            />
++          </label>
++        </div>
++      </section>
++
++      <section className="decision-card">
++        <h2>Upgrades financiados (Reinvestimento disponível: R$ {reinvestBudget.toLocaleString('pt-BR')})</h2>
++        <div className="decision-grid">
++          <label>
++            Qualidade (%)
++            <input
++              type="number"
++              value={form.quality}
++              min={0}
++              max={100}
++              onChange={(event) => updateField('quality', Math.min(100, Math.max(0, Number(event.target.value))))}
++            />
++          </label>
++          <label>
++            Eficiência (%)
++            <input
++              type="number"
++              value={form.efficiency}
++              min={0}
++              max={100}
++              onChange={(event) => updateField('efficiency', Math.min(100, Math.max(0, Number(event.target.value))))}
++            />
++          </label>
++          <label>
++            Experiência do Cliente (%)
++            <input
++              type="number"
++              value={form.cx}
++              min={0}
++              max={100}
++              onChange={(event) => updateField('cx', Math.min(100, Math.max(0, Number(event.target.value))))}
++            />
++          </label>
++        </div>
++        <p className="hint">
++          Custo estimado dos upgrades: R$ {upgradeCost.toLocaleString('pt-BR')} (100 por ponto acima do patamar anterior)
+         </p>
+-
+-        {rodadaAtual > 1 ? (
+-          <p>
+-            📊 <span
+-              style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+-              onClick={() => window.alert("Share: fatia de mercado conquistada pela sua empresa nesta rodada.")}
++        {!isUpgradeAffordable && <p className="error">Os upgrades excedem o reinvestimento disponível.</p>}
++      </section>
++
++      <section className="decision-card">
++        <h2>Marca e lançamento</h2>
++        <div className="decision-grid">
++          <label>
++            Bônus de lançamento (%)
++            <input
++              type="number"
++              value={form.launchEA}
++              min={0}
++              max={1}
++              step={0.01}
++              onChange={(event) => updateField('launchEA', Math.min(1, Math.max(0, Number(event.target.value))))}
++            />
++          </label>
++          <label>
++            Força de marca (%)
++            <input
++              type="number"
++              value={form.brandEA}
++              min={0}
++              max={1}
++              step={0.01}
++              onChange={(event) => updateField('brandEA', Math.min(1, Math.max(0, Number(event.target.value))))}
++            />
++          </label>
++          <label>
++            Benefício promocional
++            <select
++              value={form.benefitChoice ?? 'nenhum'}
++              onChange={(event) => updateField('benefitChoice', event.target.value === 'nenhum' ? null : event.target.value)}
+             >
+-              Share
+-            </span>: {resultado.share}%
+-          </p>
+-        ) : (
+-          <p className="indicator-note">📊 Share será exibido a partir da segunda rodada.</p>
++              <option value="nenhum">Nenhum</option>
++              <option value="cupom">Cupom</option>
++              <option value="brinde">Brinde</option>
++              <option value="frete">Frete grátis</option>
++            </select>
++          </label>
++        </div>
++      </section>
++
++      <section className="decision-actions">
++        <button type="button" onClick={handlePreview} disabled={preview.loading || !seasonId}>
++          Calcular Preview
++        </button>
++        <button type="button" className="primary" onClick={handleSave} disabled={!formValid}>
++          Salvar Decisão
++        </button>
++      </section>
++
++      <section className="decision-card">
++        <h2>Resultado previsto do meu time</h2>
++        {preview.loading && <p>Calculando...</p>}
++        {preview.error && <p className="error">{preview.error}</p>}
++        {!preview.loading && preview.myTeam && (
++          <div className="preview-grid">
++            <div>
++              <strong>EA linear:</strong> {preview.myTeam.eaLinear.toFixed(2)}
++            </div>
++            <div>
++              <strong>Participação:</strong> {(preview.myTeam.share * 100).toFixed(2)}%
++            </div>
++            <div>
++              <strong>Demanda:</strong> {Math.round(preview.myTeam.demandRaw).toLocaleString('pt-BR')} unid.
++            </div>
++            <div>
++              <strong>Vendas:</strong> {Math.round(preview.myTeam.sales).toLocaleString('pt-BR')} unid.
++            </div>
++            <div>
++              <strong>Receita:</strong> R$ {preview.myTeam.revenue.toLocaleString('pt-BR')}
++            </div>
++            <div>
++              <strong>Lucro:</strong> R$ {preview.myTeam.profit.toLocaleString('pt-BR')}
++            </div>
++            <div>
++              <strong>Reinvest (20%):</strong> R$ {preview.myTeam.reinvest.toLocaleString('pt-BR')}
++            </div>
++            <div>
++              <strong>Caixa (80%):</strong> R$ {preview.myTeam.cashToFinal.toLocaleString('pt-BR')}
++            </div>
++            <div>
++              <strong>Limite capacidade:</strong> {preview.myTeam.flags.capacityBound ? 'Sim' : 'Não'}
++            </div>
++          </div>
+         )}
+-
+-        <p>
+-          🛍️ <span
+-            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+-            onClick={() => window.alert("Estimativa de vendas nesta rodada (limitada por sua capacidade e tamanho de mercado).")}
+-          >
+-            Vendas (estimadas)
+-          </span>: {formatar(vendasEstimadas)}
+-        </p>
+-
+-        <p>
+-          💰 <span
+-            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+-            onClick={() => window.alert("Valor estimado de receita nesta rodada.")}
+-          >
+-            Receita
+-          </span>: R$ {formatar(resultado.receita)}
+-        </p>
+-
+-        <p>
+-          📉 <span
+-            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+-            onClick={() => window.alert("Potencial de lucro para essa rodada.")}
+-          >
+-            Lucro
+-          </span>: R$ {formatar(resultado.lucro)}
+-        </p>
+-
+-        <p>
+-          🏦 <span
+-            style={{ fontWeight: "bold", cursor: "pointer", textDecoration: "underline dotted" }}
+-            onClick={() => window.alert("Saldo estimado após custos e reinvestimento.")}
+-          >
+-            Caixa Final
+-          </span>: R$ {formatar(resultado.caixaFinal)}
+-        </p>
+-      </div>
+-
+-      {!rodadaAtiva && (
+-        <div className="alert red">⛔ A rodada está fechada. Aguarde o responsável iniciar a próxima rodada.</div>
+-      )}
+-
+-      {rodadaAtiva && (
+-        <div className="alert green">✅ Rodada ativa! Tempo restante: ⏱️ {tempoRestante}</div>
+-      )}
+-
+-      {passouDoLimite && (
+-        <div className="alert red">❌ Você ultrapassou o limite de investimento. Ajuste suas decisões para continuar.</div>
+-      )}
+-
+-      {mensagemCapitao && (
+-        <div className="alert gray">{mensagemCapitao}</div>
+-      )}
+-
+-      <button
+-        className="save-button"
+-        disabled={!rodadaAtiva || passouDoLimite}
+-        onClick={salvarDecisao}
+-      >
+-        💾 Salvar Decisão
+-      </button>
++      </section>
++
++      <section className="decision-card">
++        <h2>Ranking previsto (lucro)</h2>
++        {preview.loading && <p>Carregando...</p>}
++        {!preview.loading && preview.ranking.length === 0 && <p>Aguardando decisões das equipes.</p>}
++        {!preview.loading && preview.ranking.length > 0 && (
++          <table className="ranking-table">
++            <thead>
++              <tr>
++                <th>#</th>
++                <th>Time</th>
++                <th>Participação</th>
++                <th>Vendas</th>
++                <th>Lucro</th>
++              </tr>
++            </thead>
++            <tbody>
++              {preview.ranking.map((team: any, index: number) => (
++                <tr key={team.teamId} className={team.teamId === teamId ? 'highlight' : ''}>
++                  <td>{index + 1}</td>
++                  <td>{team.name ?? team.teamId}</td>
++                  <td>{(team.share * 100).toFixed(2)}%</td>
++                  <td>{Math.round(team.sales).toLocaleString('pt-BR')}</td>
++                  <td>R$ {team.profit.toLocaleString('pt-BR')}</td>
++                </tr>
++              ))}
++            </tbody>
++          </table>
++        )}
++      </section>
+     </div>
+   );
+-}
++};
++
++export default DecisionPage;
+diff --git a/epes-2025/src/pages/RankingPage.tsx b/epes-2025/src/pages/RankingPage.tsx
+index a9ad21ca57d56a471b1649eb8756b5414902dd41..a82e4b317bc424efcf1c974a2bdc306b61a1e93e 100644
+--- a/epes-2025/src/pages/RankingPage.tsx
++++ b/epes-2025/src/pages/RankingPage.tsx
+@@ -1,85 +1,94 @@
+ // src/pages/RankingPage.tsx
+ import React, { useEffect, useState } from "react";
+ import { db } from "../services/firebase";
+ import {
+   collection,
+   getDocs,
+   doc,
+   getDoc,
+ } from "firebase/firestore";
++import { useRoundPreview } from "../hooks/useRoundPreview";
+ 
+ type TimeDoc = {
+   id: string;
+   nome?: string;
+ };
+ 
+ type ResultadoOficial = {
+   lucro?: number;            // R$
+   satisfacao?: number;       // 0..100
+   caixaFinal?: number;       // R$
+   atraso?: boolean;          // true se enviou fora do prazo
+   decisaoForaDoPrazo?: boolean;
+   status?: string;           // "✅" se válido
+   timeId: string;
+ };
+ 
+ type LinhaRanking = {
+   id: string;
+   nome: string;
+   caixaAcumulado: number;    // último caixa final apurado
+   lucroTotal: number;        // soma de lucros nas rodadas fechadas
+   lucroMedio: number;        // média
+   satisfacaoMedia: number;   // média
+   complianceScore: number;   // 0..100 (% de rodadas em conformidade)
+   rodadasConcluidas: number; // quantas rodadas fechadas contribuíram
+   scoreEPES: number;         // 40/30/20/10
+ };
+ 
+ const fmtBRL = (v: number) =>
+   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+ 
+ const RankingPage: React.FC = () => {
+   const [ranking, setRanking] = useState<LinhaRanking[]>([]);
+   const [carregando, setCarregando] = useState(true);
+   const [mensagem, setMensagem] = useState<string | null>(null);
+   const [rodadaAtual, setRodadaAtual] = useState<number>(1);
+   const [rodadaAtiva, setRodadaAtiva] = useState<boolean>(false);
++  const [seasonId, setSeasonId] = useState<string>("");
++  const [roundId, setRoundId] = useState<string>("");
++  const [teamId] = useState<string>(localStorage.getItem("idDoTime") ?? "");
++
++  const preview = useRoundPreview({ seasonId, roundId, teamId });
+ 
+   useEffect(() => {
+     (async () => {
+       try {
+         setCarregando(true);
+         setMensagem(null);
+ 
+         // 1) Ler controle global
+         const geralSnap = await getDoc(doc(db, "configuracoes", "geral"));
+         const g = geralSnap.data() || {};
+         const rAtual = Number(g.rodadaAtual ?? 1);
+         const rAtiva = g.rodadaAtiva === true;
+         setRodadaAtual(rAtual);
+         setRodadaAtiva(rAtiva);
++        const season = (g.seasonId as string) ?? "default-season";
++        setSeasonId(season);
++        setRoundId(`D${rAtual}`);
+ 
+         // 2) Carregar todos os times
+         const timesSnap = await getDocs(collection(db, "times"));
+         const times: TimeDoc[] = timesSnap.docs.map((d) => ({
+           id: d.id,
+           ...(d.data() as any),
+         }));
+ 
+         if (times.length === 0) {
+           setRanking([]);
+           setMensagem("Nenhum time cadastrado ainda.");
+           setCarregando(false);
+           return;
+         }
+ 
+         // 3) Definir rodadas oficialmente fechadas
+         const ultimaRodadaFechada = rAtiva ? rAtual - 1 : rAtual;
+         if (ultimaRodadaFechada <= 0) {
+           setRanking([]);
+           setMensagem("Nenhuma rodada foi fechada ainda. O ranking oficial aparece após o fechamento.");
+           setCarregando(false);
+           return;
+         }
+ 
+         // 4) Agregar resultados oficiais: resultadosOficiais/{timeId}/rodada{n}
+@@ -164,50 +173,86 @@ const RankingPage: React.FC = () => {
+       } catch (err: any) {
+         console.error(err);
+         setMensagem("Erro ao carregar ranking. Verifique as coleções 'times' e 'resultadosOficiais/*/rodadaN'.");
+       } finally {
+         setCarregando(false);
+       }
+     })();
+   }, []);
+ 
+   return (
+     <div style={{ padding: "2rem" }}>
+       <h1>🏆 Ranking EPES</h1>
+ 
+       <p style={{ marginTop: 4 }}>
+         <strong>Critérios:</strong> 40% Caixa (última rodada fechada) • 30% Lucro Médio • 20% Satisfação Média • 10% Compliance
+         <br />
+         <strong>Desempate:</strong> Caixa &gt; Satisfação
+         <br />
+         {rodadaAtiva ? (
+           <em>⚠️ Rodada #{rodadaAtual} está ativa — o ranking mostra apenas rodadas fechadas (até #{Math.max(rodadaAtual - 1, 0)}).</em>
+         ) : (
+           <em>✅ Rodada #{rodadaAtual} está fechada — ranking considera 1..#{rodadaAtual}.</em>
+         )}
+       </p>
+ 
++      <section style={{ marginBottom: "2rem", background: "#f8fafc", padding: "1.25rem", borderRadius: 12, border: "1px solid #e2e8f0" }}>
++        <h2 style={{ marginTop: 0 }}>📊 Preview competitivo da rodada ativa</h2>
++        {preview.loading && <p>Calculando previsão coletiva...</p>}
++        {preview.error && <p style={{ color: "#b91c1c" }}>{preview.error}</p>}
++        {!preview.loading && preview.ranking.length === 0 && <p>Aguardando decisões para gerar o preview.</p>}
++        {!preview.loading && preview.ranking.length > 0 && (
++          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
++            <thead>
++              <tr style={{ background: "#e2e8f0" }}>
++                <th style={{ textAlign: "left", padding: "8px" }}>#</th>
++                <th style={{ textAlign: "left", padding: "8px" }}>Time</th>
++                <th style={{ textAlign: "right", padding: "8px" }}>Share</th>
++                <th style={{ textAlign: "right", padding: "8px" }}>Vendas</th>
++                <th style={{ textAlign: "right", padding: "8px" }}>Lucro</th>
++              </tr>
++            </thead>
++            <tbody>
++              {preview.ranking.map((linha: any, idx: number) => (
++                <tr
++                  key={linha.teamId}
++                  style={{
++                    background: linha.teamId === teamId ? "rgba(34,197,94,0.15)" : "transparent",
++                  }}
++                >
++                  <td style={{ padding: "8px" }}>{idx + 1}</td>
++                  <td style={{ padding: "8px" }}>{linha.name ?? linha.teamId}</td>
++                  <td style={{ padding: "8px", textAlign: "right" }}>{(linha.share * 100).toFixed(2)}%</td>
++                  <td style={{ padding: "8px", textAlign: "right" }}>{Math.round(linha.sales).toLocaleString("pt-BR")}</td>
++                  <td style={{ padding: "8px", textAlign: "right" }}>R$ {linha.profit.toLocaleString("pt-BR")}</td>
++                </tr>
++              ))}
++            </tbody>
++          </table>
++        )}
++      </section>
++
+       {carregando && <p>🔄 Carregando...</p>}
+       {mensagem && !carregando && <p style={{ color: "#666" }}>{mensagem}</p>}
+ 
+       {!carregando && ranking.length > 0 && (
+         <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem" }}>
+           <thead>
+             <tr style={{ background: "#eee" }}>
+               <th style={{ textAlign: "left", padding: "8px" }}>#</th>
+               <th style={{ textAlign: "left", padding: "8px" }}>Time</th>
+               <th style={{ textAlign: "right", padding: "8px" }}>Score EPES</th>
+               <th style={{ textAlign: "right", padding: "8px" }}>Caixa</th>
+               <th style={{ textAlign: "right", padding: "8px" }}>Lucro Total</th>
+               <th style={{ textAlign: "right", padding: "8px" }}>Lucro Médio</th>
+               <th style={{ textAlign: "right", padding: "8px" }}>Satisfação</th>
+               <th style={{ textAlign: "right", padding: "8px" }}>Compliance</th>
+               <th style={{ textAlign: "center", padding: "8px" }}>Rodadas</th>
+             </tr>
+           </thead>
+           <tbody>
+             {ranking.map((t, idx) => (
+               <tr key={t.id} style={{ borderBottom: "1px solid #ddd" }}>
+                 <td style={{ padding: "8px" }}>{idx + 1}</td>
+                 <td style={{ padding: "8px" }}>{t.nome}</td>
+                 <td style={{ padding: "8px", textAlign: "right" }}>{t.scoreEPES.toFixed(2)}</td>
+                 <td style={{ padding: "8px", textAlign: "right" }}>{fmtBRL(t.caixaAcumulado)}</td>
+diff --git a/epes-2025/tests/run-tests.js b/epes-2025/tests/run-tests.js
+new file mode 100755
+index 0000000000000000000000000000000000000000..f82674fbcc2f9b15e5bd064931f3799bd86668a7
+--- /dev/null
++++ b/epes-2025/tests/run-tests.js
+@@ -0,0 +1,233 @@
++#!/usr/bin/env node
++import { execSync } from 'node:child_process';
++import assert from 'node:assert/strict';
++import path from 'node:path';
++import { fileURLToPath, pathToFileURL } from 'node:url';
++
++const __filename = fileURLToPath(import.meta.url);
++const __dirname = path.dirname(__filename);
++
++const projectRoot = path.resolve(__dirname, '..');
++const buildDir = path.join(projectRoot, 'build', 'engine');
++
++console.log('Compiling engine...');
++execSync(`npx tsc -p ${path.join(projectRoot, 'tsconfig.engine.json')}`, { stdio: 'inherit' });
++
++const engineUrl = pathToFileURL(path.join(buildDir, 'index.js')).href;
++const engine = await import(engineUrl);
++
++const tests = [];
++const test = (name, fn) => {
++  tests.push({ name, fn });
++};
++
++const season = {
++  refPrice: 50,
++  softmaxBeta: 1.1,
++  shareCap: 0.55,
++  dampingAlpha: 1.5,
++  weights: { price: 40, quality: 30, marketing: 20, cx: 10 },
++  costs: { cvuBase: 12, kQuality: 8, kEfficiency: 6, fixedTeamCost: 2000, benefitCost: 500 },
++  rules: { reinvestRate: 0.2 },
++};
++
++const publicTargets = [
++  { id: 'CLASS_AB', deltas: { price: 5, quality: 5 }, elasticity: 0.9, marketingBoost: 0.1 },
++  { id: 'CLASS_CD', deltas: { price: -5, marketing: 3 }, elasticity: 1.3, marketingBoost: 0.2 },
++  { id: 'SENIOR_40P', deltas: { quality: 8, cx: 4 }, elasticity: 0.8, marketingBoost: 0 },
++];
++
++test('softmax shares respect cap and sum to 1', () => {
++  const shares = engine.softmax([3, 2, 1], 1);
++  const capped = engine.capShares(shares, 0.5);
++  const sum = capped.reduce((acc, v) => acc + v, 0);
++  assert.ok(Math.abs(sum - 1) < 1e-9, 'shares should sum to 1');
++  capped.forEach((value) => assert.ok(value <= 0.5 + 1e-9, 'share above cap'));
++});
++
++test('EA and demand raw are positive', () => {
++  const target = publicTargets[0];
++  const weights = engine.tunedWeights(season.weights, target);
++  const ea = engine.computeEA(weights, {
++    teamId: 'A',
++    name: 'Team A',
++    publicTargetId: target.id,
++    price: 55,
++    marketingSpend: 15000,
++    capacity: 5000,
++    quality: 80,
++    efficiency: 60,
++    cx: 70,
++    launchEA: 0.05,
++    brandEA: 0.02,
++    benefitChoice: null,
++    benefitCostOverride: null,
++    reinvestBudget: 2000,
++    cash: 4000,
++  }, season.refPrice, target);
++  assert.ok(ea.ea > 0);
++  const demand = engine.demandRaw(10000, 0.3, 55, season.refPrice, target.elasticity);
++  assert.ok(demand > 0);
++});
++
++test('capacity scaling keeps sales under market size', () => {
++  const round = engine.computeRound({
++    season,
++    publicTargets,
++    round: { marketSize: 10000, roundId: 'D2' },
++    teams: publicTargets.map((target, idx) => ({
++      teamId: target.id,
++      name: target.id,
++      publicTargetId: target.id,
++      price: [55, 48, 60][idx],
++      marketingSpend: [15000, 18000, 12000][idx],
++      capacity: 9000,
++      quality: 80 + idx * 5,
++      efficiency: 60 + idx * 5,
++      cx: 70 + idx * 5,
++      launchEA: 0,
++      brandEA: 0,
++      benefitChoice: null,
++      benefitCostOverride: null,
++      reinvestBudget: 2000,
++      cash: 5000,
++    })),
++  });
++  const totalSales = round.results.reduce((acc, r) => acc + r.sales, 0);
++  assert.ok(totalSales <= 10000 + 1e-6, 'sales must not exceed market size');
++});
++
++test('split profit uses 20/80 and windfall damping is applied', () => {
++  const profits = [1000, 2000, 5000];
++  const damped = engine.windfallDamping(profits, 1.5);
++  damped.forEach((value, idx) => {
++    if (idx === 2) {
++      assert.ok(value <= profits[idx], 'damped profit should not increase');
++    }
++  });
++  const split = engine.splitProfit(1000, season.rules.reinvestRate);
++  assert.equal(Math.round(split.reinvest), 200);
++  assert.equal(Math.round(split.cashToFinal), 800);
++  const splitNegative = engine.splitProfit(-100, season.rules.reinvestRate);
++  assert.equal(splitNegative.reinvest, 0);
++  assert.equal(splitNegative.cashToFinal, 0);
++});
++
++test('integration scenario enforces competition', () => {
++  const round = engine.computeRound({
++    season,
++    publicTargets,
++    round: { marketSize: 10000, roundId: 'D5' },
++    teams: [
++      {
++        teamId: 'CLASS_AB',
++        name: 'Classe AB',
++        publicTargetId: 'CLASS_AB',
++        price: 55,
++        marketingSpend: 12000,
++        capacity: 7000,
++        quality: 85,
++        efficiency: 70,
++        cx: 75,
++        launchEA: 0.1,
++        brandEA: 0.05,
++        benefitChoice: null,
++        benefitCostOverride: null,
++        reinvestBudget: 3000,
++        cash: 9000,
++      },
++      {
++        teamId: 'CLASS_CD',
++        name: 'Classe CD',
++        publicTargetId: 'CLASS_CD',
++        price: 48,
++        marketingSpend: 16000,
++        capacity: 8000,
++        quality: 75,
++        efficiency: 60,
++        cx: 65,
++        launchEA: 0,
++        brandEA: 0,
++        benefitChoice: null,
++        benefitCostOverride: null,
++        reinvestBudget: 2500,
++        cash: 7000,
++      },
++      {
++        teamId: 'SENIOR_40P',
++        name: 'Senior',
++        publicTargetId: 'SENIOR_40P',
++        price: 60,
++        marketingSpend: 10000,
++        capacity: 6000,
++        quality: 90,
++        efficiency: 80,
++        cx: 80,
++        launchEA: 0.05,
++        brandEA: 0.05,
++        benefitChoice: null,
++        benefitCostOverride: null,
++        reinvestBudget: 2600,
++        cash: 8000,
++      },
++    ],
++  });
++  const shareSum = round.results.reduce((acc, r) => acc + r.share, 0);
++  assert.ok(Math.abs(shareSum - 1) < 1e-9, 'shares must sum to 1');
++  const altered = engine.computeRound({
++    season,
++    publicTargets,
++    round: { marketSize: 10000, roundId: 'D5' },
++    teams: [
++      {
++        ...round.results.find((r) => r.teamId === 'CLASS_AB'),
++        price: 45,
++      },
++      {
++        ...round.results.find((r) => r.teamId === 'CLASS_CD'),
++      },
++      {
++        ...round.results.find((r) => r.teamId === 'SENIOR_40P'),
++      },
++    ].map((r) => ({
++      teamId: r.teamId,
++      name: r.name,
++      publicTargetId: r.publicTargetId,
++      price: r.price,
++      marketingSpend: r.marketingSpend,
++      capacity: r.capacity,
++      quality: r.unitCost * 100,
++      efficiency: r.unitCost * 100,
++      cx: r.share * 100,
++      launchEA: 0,
++      brandEA: 0,
++      benefitChoice: null,
++      benefitCostOverride: null,
++      reinvestBudget: 2000,
++      cash: 5000,
++    })),
++  });
++  const originalShare = round.results.find((r) => r.teamId === 'CLASS_CD')?.share ?? 0;
++  const newShare = altered.results.find((r) => r.teamId === 'CLASS_CD')?.share ?? 0;
++  assert.notEqual(originalShare, newShare, 'share should change when competitor changes price');
++});
++
++let passed = 0;
++for (const { name, fn } of tests) {
++  try {
++    fn();
++    console.log(`✅ ${name}`);
++    passed += 1;
++  } catch (error) {
++    console.error(`❌ ${name}`);
++    console.error(error);
++    process.exitCode = 1;
++    break;
++  }
++}
++
++if (process.exitCode && process.exitCode !== 0) {
++  process.exit(process.exitCode);
++} else {
++  console.log(`\n${passed} tests passed.`);
++}
+diff --git a/epes-2025/tsconfig.app.json b/epes-2025/tsconfig.app.json
+index 810cb264806c1de87b58011f940bc3e07c6ee431..368ac9cf64107c59078223fe26fe4c5ed50d798b 100644
+--- a/epes-2025/tsconfig.app.json
++++ b/epes-2025/tsconfig.app.json
+@@ -1,24 +1,20 @@
+ {
+   "compilerOptions": {
+     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+     "target": "ES2022",
+     "useDefineForClassFields": true,
+     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+     "module": "ESNext",
+     "skipLibCheck": true,
+-
+-    /* Bundler mode */
+     "moduleResolution": "bundler",
+     "allowImportingTsExtensions": true,
+     "verbatimModuleSyntax": true,
+     "moduleDetection": "force",
+     "noEmit": true,
+     "jsx": "react-jsx",
+-
+-    /* Linting */
+     "strict": true,
+     "noUnusedLocals": false,
+-"noUnusedParameters": false
++    "noUnusedParameters": false
+   },
+-  "include": ["src"]
++  "include": ["src", "engine"]
+ }
+diff --git a/epes-2025/tsconfig.engine.json b/epes-2025/tsconfig.engine.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..8a1fafa140ff73bd5dc31f496409f0c5ac8ceb69
+--- /dev/null
++++ b/epes-2025/tsconfig.engine.json
+@@ -0,0 +1,15 @@
++{
++  "compilerOptions": {
++    "target": "ES2020",
++    "module": "ESNext",
++    "moduleResolution": "node",
++    "outDir": "build/engine",
++    "rootDir": "engine",
++    "declaration": true,
++    "esModuleInterop": true,
++    "forceConsistentCasingInFileNames": true,
++    "strict": true,
++    "skipLibCheck": true
++  },
++  "include": ["engine/**/*.ts"]
++}
