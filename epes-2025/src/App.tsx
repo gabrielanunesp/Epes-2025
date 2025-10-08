@@ -15,7 +15,7 @@ import Informacoes from './pages/Informacoes';
 import EscolherTime from './pages/EscolherTime';
 import PainelResponsavel from './pages/PainelResponsavel';
 import D0Identidade from './pages/D0Identidade'; // ✅ Etapa de identidade
-
+import Guia from './pages/Guia'; // ✅ Nova página (Guia Interativo)
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -75,6 +75,12 @@ function App() {
         <Route
           path="/painel-responsavel"
           element={user ? <PainelResponsavel /> : <Navigate to="/login" />}
+        />
+
+        {/* ✅ Nova rota do Guia Interativo */}
+        <Route
+          path="/guia"
+          element={user ? <Guia /> : <Navigate to="/login" />}
         />
       </Routes>
 

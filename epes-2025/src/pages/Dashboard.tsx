@@ -257,7 +257,25 @@ export default function Dashboard() {
             <span style={styles.titleBadge}>EPES • Challenge 2025</span>
             <h1 style={styles.h1}>Dashboard</h1>
           </div>
-          <Button className="btn-logout" onClick={handleLogout}>Sair</Button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {/* Botão extra para o Guia Interativo */}
+            <Button
+              className="btn-guia"
+              onClick={() => navigate("/guia")}
+              style={{
+                borderRadius: 999,
+                border: "1px solid rgba(159,211,255,0.45)",
+                background: "rgba(159,211,255,0.18)",
+                color: "#eaf2f8",
+                padding: "10px 14px",
+                fontWeight: 700,
+              }}
+            >
+              📘 Guia Interativo
+            </Button>
+
+            <Button className="btn-logout" onClick={handleLogout}>Sair</Button>
+          </div>
         </header>
 
         <main>
@@ -301,6 +319,12 @@ export default function Dashboard() {
                   title="🧠 Painel Estratégico"
                   description="Acompanhe os resultados financeiros e decisões do seu time."
                   onClick={() => navigate("/informacoes")}
+                />
+                {/* Novo Card apontando para /guia */}
+                <Card
+                  title="📘 Guia Interativo"
+                  description="Dúvidas sobre rodadas, métricas e estratégia."
+                  onClick={() => navigate("/guia")}
                 />
               </div>
             </>
