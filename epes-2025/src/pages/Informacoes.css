@@ -1,29 +1,157 @@
-.page-container {
-  padding: 2rem;
-  max-width: 700px;
+/* Page shell */
+.info-page {
+  --bg: #0b1220;
+  --card: rgba(17, 25, 40, 0.66);
+  --card-stroke: rgba(255, 255, 255, 0.08);
+  --text: #e8eefc;
+  --muted: #a9b3c6;
+  --accent: #8ab4ff;
+
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(138,180,255,0.18) 0%, rgba(138,180,255,0) 60%),
+    radial-gradient(1400px 700px at 120% 10%, rgba(214,162,232,0.18) 0%, rgba(214,162,232,0) 60%),
+    var(--bg);
+  min-height: 100vh;
+  padding: 48px 16px 72px;
+  display: grid;
+  place-items: start center;
+  width: 100%;
+  box-sizing: border-box;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+}
+
+.dashboard-header h1 {
+  font-size: 1.5rem;
+  margin: 0;
+  flex-grow: 1;
+  font-weight: 600;
+}
+
+/* Container que controla a largura máxima da página.
+   Os cards ocupam 100% deste container. */
+.info-container {
+  /* Make the page wider and resilient against global wrappers */
+  width: min(92vw, 2000px);
+  max-width: 2000px;
   margin: 0 auto;
-  background-color: #ffffff;
-  border-left: 4px solid #3498db;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+/* Highest priority fallback in case another stylesheet caps width */
+.info-page > .info-container {
+  width: min(92vw, 1800px) !important;
+  max-width: 1800px !important;
 }
 
-h2 {
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
-  color: #34495e;
+/* Header */
+.info-header {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.info-header__title { display:flex; align-items:center; gap:10px; }
+.info-header__emoji { font-size: 28px; }
+.info-header h2 { margin: 0; font-weight: 700; letter-spacing: 0.2px; }
+.info-header__controls { display:flex; align-items:center; gap: 10px; }
+.info-header__controls label{ color: var(--muted); font-size: 14px; }
+.info-header__controls select{
+  border-radius: 10px; border: 1px solid var(--card-stroke);
+  background: rgba(255,255,255,0.06); color: var(--text);
+  padding: 8px 12px;
 }
 
-ul {
-  list-style-type: disc;
-  padding-left: 1.5rem;
+/* Card */
+.card {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(17,25,40,0.66), rgba(17,25,40,0.52));
+  border: 1px solid var(--card-stroke);
+  border-radius: 16px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 40px rgba(2, 6, 23, 0.55), inset 0 1px 0 rgba(255,255,255,0.06);
+  padding: 20px 24px;
+  margin: 16px 0;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  color: var(--text);
+  max-width: 100% !important;
+}
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 50px rgba(0, 0, 0, 0.35);
+}
+.card--glass {
+  background: linear-gradient(135deg, rgba(17,25,40,0.60), rgba(17,25,40,0.46)) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  margin-bottom: 24px;
+
 }
 
-li {
-  margin-bottom: 0.6rem;
-  font-size: 1rem;
+.card__header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 8px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.card__header h3 {
+  margin: 0;
+  font-weight: 600;
+  color: #eaf2ff;
+  letter-spacing: 0.3px;
 }
 
-.note {
-  margin-top: 1.2rem;
-  font-style: italic;
-  color: #95a5a6;
+/* Table */
+.table-wrapper { width: 100%; overflow: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.table th, .table td { padding: 10px 12px; text-align: center; font-size: 10px; }
+.table thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: rgba(17,25,40,0.35);
+  backdrop-filter: blur(4px);
+  color: var(--muted);
+  font-size: 10px; /* 👈 reduz a fonte geral dentro do card */
+
+}
+.table, .table thead, .table tbody, .table tr, .table th, .table td {
+  background: transparent !important;
+  color: inherit;
+}
+.table th, .table td { border-bottom: 1px solid rgba(255,255,255,0.08); }
+.table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.02); }
+.table tbody tr:hover { background: rgba(138,180,255,0.12); }
+
+/* Row states */
+.row--danger { background: rgba(255, 99, 99, 0.16) !important; }
+.row--warn   { background: rgba(255, 214, 102, 0.16) !important; }
+
+/* Empty and alerts */
+.info-empty { padding: 20px; color: var(--muted); }
+.info-alert { width: 100%; padding:12px 14px; border-radius:10px; margin:12px 0; }
+.info-alert--error { background: rgba(255, 99, 99, 0.16); border: 1px solid rgba(255, 99, 99, 0.28); }
+
+/* Loading skeleton */
+.info-skeleton { width: 100%; display:grid; gap:10px; }
+.info-skeleton__bar {
+  height: 14px; border-radius:8px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.12), rgba(255,255,255,0.06));
+  background-size: 240px 100%;
+  animation: sk 1.2s infinite linear;
+}
+@keyframes sk { 0%{background-position:-240px} 100%{background-position:240px} }
+
+.card__caption { color: var(--muted); font-size: 12px; }
+
+/* Ensure cards fill container width and ignore legacy caps */
+.info-container .card {
+  max-width: none !important;
 }

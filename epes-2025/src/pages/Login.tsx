@@ -100,7 +100,7 @@ export default function Login() {
             onChange={(e) => setClassCode(e.target.value)}
           />
 
-          <div className="login-buttons">
+          <div className="buttons-row">
             <Button type="submit" className="btn-primary">
               Entrar no jogo
             </Button>
@@ -112,11 +112,6 @@ export default function Login() {
           <Button type="button" className="btn-help" onClick={handleAjudaLogin}>
             Ajuda no Login
           </Button>
-
-          <footer className="login-footer">
-            <a href="#">Política</a>
-            <a href="#">Acessibilidade</a>
-          </footer>
         </form>
       </div>
 

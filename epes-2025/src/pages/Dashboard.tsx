@@ -8,6 +8,118 @@ import Button from "../components/Button";
 import RoundStatusCard from "../components/RoundStatusCard";
 import "./Dashboard.css";
 
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #0e2a47 0%, #0a1e31 45%, #121212 100%)",
+    color: "#eaf2f8",
+  } as React.CSSProperties,
+  container: {
+    maxWidth: 1180,
+    margin: "0 auto",
+    padding: "24px 24px 56px",
+  } as React.CSSProperties,
+  header: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    padding: "12px 0 24px",
+  } as React.CSSProperties,
+  titleWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  } as React.CSSProperties,
+  titleBadge: {
+    padding: "4px 10px",
+    borderRadius: 999,
+    fontSize: 12,
+    letterSpacing: 0.4,
+    color: "#9fd3ff",
+    background: "rgba(159, 211, 255, 0.12)",
+    border: "1px solid rgba(159,211,255,0.25)",
+  } as React.CSSProperties,
+  h1: {
+    margin: 0,
+    fontSize: 28,
+    fontWeight: 800,
+    letterSpacing: 0.2,
+  } as React.CSSProperties,
+  glassCard: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+    backdropFilter: "blur(7px)",
+    WebkitBackdropFilter: "blur(7px)",
+    borderRadius: 16,
+  } as React.CSSProperties,
+  identity: {
+    display: "grid",
+    gridTemplateColumns: "72px 1fr auto",
+    gap: 16,
+    padding: 16,
+    alignItems: "center",
+  } as React.CSSProperties,
+  logoBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    border: "2px solid rgba(255,255,255,0.18)",
+  } as React.CSSProperties,
+  quickRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 16,
+  } as React.CSSProperties,
+  pillBtn: {
+    appearance: "none",
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.06)",
+    color: "#eaf2f8",
+    padding: "10px 14px",
+    borderRadius: 999,
+    cursor: "pointer",
+    fontWeight: 600,
+  } as React.CSSProperties,
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: 16,
+    marginTop: 24,
+  } as React.CSSProperties,
+  callout: {
+    padding: 18,
+    lineHeight: 1.65,
+  } as React.CSSProperties,
+  calloutTitle: { margin: 0, fontSize: 18, fontWeight: 700 } as React.CSSProperties,
+  calloutP: { margin: "8px 0 0", color: "#cbe3ff" } as React.CSSProperties,
+  formBox: { padding: 16, marginTop: 16 } as React.CSSProperties,
+  formLabel: { display: "block", fontSize: 13, marginTop: 10, marginBottom: 6, opacity: 0.9 } as React.CSSProperties,
+  input: {
+    width: "100%",
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.16)",
+    color: "#eaf2f8",
+    padding: "10px 12px",
+    borderRadius: 10,
+  } as React.CSSProperties,
+  textarea: {
+    width: "100%",
+    minHeight: 90,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.16)",
+    color: "#eaf2f8",
+    padding: "10px 12px",
+    borderRadius: 10,
+  } as React.CSSProperties,
+  colorRow: { display: "flex", alignItems: "center", gap: 12, marginTop: 10 } as React.CSSProperties,
+  colorSwatch: { width: 34, height: 34, borderRadius: 8, border: "2px solid rgba(255,255,255,0.2)" } as React.CSSProperties,
+  sectionTitle: { margin: "22px 0 8px", fontSize: 18, fontWeight: 800 } as React.CSSProperties,
+  footerHint: { opacity: 0.8, fontSize: 12, marginTop: 24 } as React.CSSProperties,
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [carregando, setCarregando] = useState(true);
@@ -138,211 +250,63 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <h1>Dashboard</h1>
-        <Button className="btn-logout" onClick={handleLogout}>
-          Sair
-        </Button>
-      </header>
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <header style={styles.header}>
+          <div style={styles.titleWrap}>
+            <span style={styles.titleBadge}>EPES • Challenge 2025</span>
+            <h1 style={styles.h1}>Dashboard</h1>
+          </div>
+          <Button className="btn-logout" onClick={handleLogout}>Sair</Button>
+        </header>
 
-      <main style={{ padding: "2rem" }}>
-        {carregando ? (
-          <p>Carregando...</p>
-        ) : (
-          <>
-            {empresaInfo && (
-              <div
-                className="empresa-identidade"
-                style={{ padding: "1rem", marginBottom: "2rem" }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                  <div
-                    style={{
-                      width: "40px",
-                      height: "40px",
-                      backgroundColor: empresaInfo.cor || "#4caf50",
-                      borderRadius: "6px",
-                      border: "2px solid #ccc",
-                    }}
-                  />
+        <main>
+          {carregando ? (
+            <p>Carregando...</p>
+          ) : (
+            <>
+              {empresaInfo && (
+                <div style={{ ...styles.glassCard, ...styles.identity, marginBottom: 18 }}>
+                  <div style={{ ...styles.logoBox, backgroundColor: empresaInfo.cor || "#4caf50" }} />
                   <div>
-                    <h2>{empresaInfo.nome}</h2>
-                    <p>
-                      <strong>Público-alvo:</strong> {empresaInfo.publicoAlvo}
+                    <h2 style={{ margin: 0 }}>{empresaInfo.nome}</h2>
+                    <p style={{ margin: "6px 0 0", opacity: 0.9 }}>
+                      <strong>Público-alvo:</strong> {empresaInfo.publicoAlvo || "—"}
                     </p>
-                    <p>
+                    <p style={{ margin: "6px 0 0", color: "#cbe3ff" }}>
                       <em>{empresaInfo.missao}</em>
                     </p>
+                    {empresaInfo.logoUrl && empresaInfo.logoUrl.startsWith("http") && (
+                      <img src={empresaInfo.logoUrl} alt="Logo da empresa" style={{ marginTop: 10, height: 44, borderRadius: 6 }} />
+                    )}
+                  </div>
+                  <div>
+                    <span style={{ ...styles.titleBadge, display: "inline-block" }}>Equipe</span>
                   </div>
                 </div>
-                {empresaInfo.logoUrl && empresaInfo.logoUrl.startsWith("http") && (
-                  <img
-                    src={empresaInfo.logoUrl}
-                    alt="Logo da empresa"
-                    style={{ marginTop: "1rem", height: "50px", borderRadius: "4px" }}
-                  />
-                )}
-              </div>
-            )}
+              )}
 
-            {/* bloco explicativo (mantido) */}
-            <div
-              style={{
-                backgroundColor: "#e8f5e9",
-                border: "2px solid #4caf50",
-                borderRadius: "8px",
-                padding: "1rem",
-                marginBottom: "2rem",
-                color: "#2e7d32",
-                fontWeight: 500,
-                lineHeight: 1.6,
-              }}
-            >
-              <p>
-                👥 <strong>Bem-vindo ao Dashboard da sua equipe!</strong>
-                <br />
-                <br />
-                Aqui você acompanha o desempenho da empresa, acessa relatórios, rankings e
-                toma decisões estratégicas a cada rodada.
-                <br />
-                <br />
-                🧭 <strong>Identidade da Empresa:</strong> Antes de iniciar as decisões,
-                defina o nome, missão e estilo visual da sua empresa. Essa identidade
-                será usada em todas as rodadas e impacta a percepção dos clientes e
-                concorrentes.
-                <br />
-                <br />
-                👑 <strong>Capitão:</strong> Apenas o capitão pode criar ou editar a
-                identidade da empresa. O botão <strong>"Criar Empresa"</strong> aparece
-                exclusivamente para o capitão que criou a equipe. Preencha com atenção —
-                sua equipe depende disso!
-                <br />
-                <br />
-                🕒 <strong>Rodadas:</strong> São liberadas pelo administrador da turma. Ao
-                iniciar, um cronômetro é ativado com prazo máximo até{" "}
-                <strong>23:59</strong> do mesmo dia. Mesmo após o capitão salvar as
-                decisões, o cronômetro continua ativo até o fim. Após esse horário, a
-                rodada é encerrada e os resultados ficam disponíveis nas páginas de{" "}
-                <strong>Relatórios</strong> e <strong>Ranking</strong>.
-                <br />
-                <br />
-                📦 <strong>Decisões:</strong> No card de decisões, apenas o capitão pode
-                enviar as escolhas da equipe. O botão de envio só aparece enquanto a
-                rodada estiver aberta. Fique atento ao tempo e alinhe as decisões com seu
-                grupo antes de confirmar!
-                <br />
-                <br />
-                ✅ <strong>Dica:</strong> Use os relatórios e rankings para embasar suas
-                estratégias. Cada rodada é uma chance de ajustar o rumo da empresa e
-                buscar a liderança!
-              </p>
-            </div>
-
-            {/* criação/edição de empresa (apenas capitão) */}
-            {isCapitao && papel !== "responsavel" && (
-              <div className="cadastro-empresa-box">
-                <h2>{empresaExistente ? "✏️ Editar Empresa" : "🚀 Criar Empresa"}</h2>
-                <p>
-                  {empresaExistente
-                    ? "Você pode atualizar os dados da empresa."
-                    : "Como capitão, você deve criar a identidade da empresa antes de iniciar as decisões."}
+              <div style={{ ...styles.glassCard, ...styles.callout }}>
+                <h3 style={styles.calloutTitle}>Como jogar bem esta rodada</h3>
+                <p style={styles.calloutP}>
+                  • O capitão envia as decisões enquanto a rodada estiver <strong>aberta</strong>.<br />
+                  • O resultado oficial sai após <strong>23:59</strong> e alimenta Relatórios e Ranking.<br />
+                  • Use <em>Painel Estratégico</em> para testar preço/marketing e entender o impacto.
                 </p>
-
-                <label>
-                  Nome da empresa:
-                  <input
-                    type="text"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    placeholder={empresaInfo?.nome || "Nome da empresa"}
-                  />
-                </label>
-
-                <label>
-                  Missão ou slogan:
-                  <textarea
-                    value={missao}
-                    onChange={(e) => setMissao(e.target.value)}
-                    placeholder={empresaInfo?.missao || "Missão ou slogan"}
-                  />
-                </label>
-
-                <label>
-                  URL da logo (opcional):
-                  <input
-                    type="text"
-                    value={logoUrl}
-                    onChange={(e) => setLogoUrl(e.target.value)}
-                    placeholder={empresaInfo?.logoUrl || "https://..."}
-                  />
-                </label>
-
-                {logoUrl && logoUrl.startsWith("http") && (
-                  <div style={{ marginTop: "10px" }}>
-                    <p style={{ fontSize: "0.9rem", color: "#555" }}>
-                      Pré-visualização da logo:
-                    </p>
-                    <img
-                      src={logoUrl}
-                      alt="Prévia da logo"
-                      style={{ height: "50px", borderRadius: "4px" }}
-                    />
-                  </div>
-                )}
-
-                <label style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                  Cor da identidade:
-                  <input
-                    type="color"
-                    value={cor}
-                    onChange={(e) => setCor(e.target.value)}
-                  />
-                  <div
-                    style={{
-                      width: "30px",
-                      height: "30px",
-                      backgroundColor: cor,
-                      borderRadius: "6px",
-                      border: "2px solid #ccc",
-                    }}
-                  />
-                </label>
-
-                <button onClick={handleSaveEmpresa}>
-                  {empresaExistente ? "💾 Atualizar Empresa" : "💾 Criar Empresa"}
-                </button>
               </div>
-            )}
 
-            {/* GRID: mantemos RoundStatus, Relatório e Informações
-                e removemos o card "📊 Pontuações da Rodada" */}
-            <div className="dashboard-grid">
-              <RoundStatusCard onOpenDecisions={handleOpenDecisions} />
-
-              {/* REMOVIDO: Card de Pontuações da Rodada
-              <Card
-                title="📊 Pontuações da Rodada"
-                description="Veja o desempenho do grupo e nesta rodada."
-                onClick={() => navigate("/ranking")}
-              />
-              */}
-
-              <Card
-                title="📁 Relatório do Grupo"
-                description="Revise seus dados para melhorar sua pontuação."
-                onClick={() => navigate("/relatorio")}
-              />
-
-              <Card
-                title="🧠 Painel Estratégico"
-                description="Acompanhe os resultados financeiros e decisões do seu time."
-                onClick={() => navigate("/informacoes")}
-              />
-            </div>
-          </>
-        )}
-      </main>
+              <div style={styles.grid}>
+                <RoundStatusCard onOpenDecisions={handleOpenDecisions} />
+                <Card
+                  title="🧠 Painel Estratégico"
+                  description="Acompanhe os resultados financeiros e decisões do seu time."
+                  onClick={() => navigate("/informacoes")}
+                />
+              </div>
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

@@ -1,186 +1,112 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
-
-body {
-  font-family: 'Inter', sans-serif;
-  background-color: white;
-  margin: 0;
-  padding: 0;
-}
-
+/* 1) Garante centralização absoluta no viewport */
+html, body, #root { height: 100%; }
 .login-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   min-height: 100vh;
-  padding: 2rem;
-  gap: 2rem;
-}
+  width: 100vw;
+  display: flex;
+  align-items: center;      /* alinha verticalmente */
+  justify-content: center;  /* alinha horizontalmente */
+  background: var(--bg-grad, linear-gradient(135deg, #0e2a47 0%, #0a1e31 45%, #121212 100%));
+  color: var(--fg, #eaeaea);}
 
-.login-side {
-  display: block;
-  width: 100%;
-  max-width: 500px;
-  text-align: center;
-  color: #333;
-  font-size: 1.2rem;
-}
-
+/* 2) Mantém o card no centro com sombra discreta */
 .login-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-}
-
-.login-form {
-  background: white;
-  border: 1px solid #e2e8f0;
-  padding: 3rem 2rem;
-  border-radius: 1rem;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 400px;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  transition: all 0.3s ease-in-out;
-}
-
-.login-form:hover {
-  transform: translateY(-4px);
-}
-
-.login-logo {
-  width: 120px;
   margin: 0 auto;
-  display: block;
+  background: linear-gradient(135deg, rgba(17,25,40,0.60), rgba(17,25,40,0.46)) !important;
+  border: 1px solid var(--glass-bd, rgba(255,255,255,0.08));
+  border-radius: 16px;
+  box-shadow: var(--glass-shadow, 0 8px 28px rgba(0,0,0,0.45));
+  backdrop-filter: blur(var(--glass-blur, 7px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 7px));
+  color: var(--fg, #eaeaea);                      /* texto visível no card */
+  color: #eaeaea;                      /* texto visível no card */
+  padding: 40px 32px;
+  max-width: 420px;
+  width: 100%;
 }
+
+/* 3) Inputs em tema escuro — texto branco visível */
+.login-container input[type="text"],
+.login-container input[type="email"],
+.login-container input[type="password"] {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: #ffffff;                      /* <<< texto visível */
+  border-radius: 12px;
+  padding: 12px 14px;
+  width: 100%;
+}
+.login-container input::placeholder {
+  color: rgba(255,255,255,0.65);
+}
+
+/* 4) Botões */
+.login-container .btn-primary {
+  background: #1f1f1f;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.login-container .btn-primary:hover { background: #2a2a2a; }
+
 
 .login-title {
+  color: var(--fg, #eaeaea);
+  margin: 0 0 12px 0;
+  font-size: 22px;
+  font-weight: 700;
   text-align: center;
-  color: #333;
-  font-size: 2rem;
-  font-weight: 600;
-  margin-bottom: 1rem;
 }
 
-.login-error {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: #EF4444;
-  padding: 0.5rem;
-  border-radius: 8px;
-  text-align: center;
-  font-weight: 600;
+.login-container .btn-secondary {
+  background: transparent;
+  color: #d0d0d0;
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.login-container .btn-secondary:hover {
+  background: rgba(255,255,255,0.06);
 }
 
-.login-form input {
-  border: 1px solid #cbd5e0;
-  padding: 0.85rem;
-  border-radius: 0.5rem;
-  width: 100%;
-  box-sizing: border-box;
-  font-size: 1rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
+/* 5) Acessibilidade rápida para links/rodapé no dark */
+.login-footer, .login-footer a {
+  color: rgba(255,255,255,0.8);
+}
+.login-footer a:hover { color: #ffffff; }
+
+.login-logo {
+  display: block;
+  margin: 0 auto 20px auto; /* adiciona espaço abaixo da logo */
+  max-width: 180px; /* mantém proporção adequada */
 }
 
-.login-form input:focus {
-  border-color: #6C63FF;
-  box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.3);
-  outline: none;
-}
-
-.login-buttons {
+.login-container .buttons-row {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  gap: 12px; /* espaçamento horizontal entre os botões */
+  margin-top: 20px;
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #6C63FF, #00BFFF);
-  color: white;
-  font-weight: 600;
-  padding: 0.85rem;
-  font-size: 1rem;
-  border-radius: 0.75rem;
-  border: none;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.btn-primary:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 12px rgba(108, 99, 255, 0.5);
-}
-
-.btn-secondary {
-  background: linear-gradient(135deg, #00BFFF, #6C63FF);
-  color: white;
-  font-weight: 600;
-  padding: 0.85rem;
-  font-size: 1rem;
-  border-radius: 0.75rem;
-  border: none;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.btn-secondary:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 12px rgba(0, 191, 255, 0.5);
+.login-container .buttons-row button {
+  flex: 1;
 }
 
 .btn-help {
-  background-color: transparent;
-  color: #6C63FF;
-  font-weight: 600;
-  border: 2px solid #6C63FF;
-  padding: 0.75rem;
-  border-radius: 0.75rem;
+  display: block;
+  margin: 20px auto 0 auto; /* espaço pra cima e centralizado */
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ccc;
+  border-radius: 8px;
+  padding: 10px 16px;
   cursor: pointer;
-  transition: background-color 0.2s ease;
-  text-align: center;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 .btn-help:hover {
-  background-color: #6C63FF;
-  color: white;
-}
-
-.login-footer {
-  margin-top: 1rem;
-  display: flex;
-  justify-content: center;
-  gap: 1.5rem;
-  font-size: 0.875rem;
-  color: #333;
-}
-
-.login-footer a {
-  text-decoration: none;
-  color: #333;
-  transition: color 0.2s;
-}
-
-.login-footer a:hover {
-  color: #00BFFF;
-  text-decoration: underline;
-}
-
-@media (max-width: 500px) {
-  .login-form {
-    padding: 2rem 1.5rem;
-  }
-
-  .login-title {
-    font-size: 1.75rem;
-  }
-
-  .login-buttons {
-    flex-direction: column;
-  }
-
-  .btn-primary, .btn-secondary {
-    width: 100%;
-  }
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }

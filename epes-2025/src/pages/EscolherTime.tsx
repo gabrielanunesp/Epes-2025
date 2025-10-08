@@ -267,12 +267,6 @@ await updateDoc(timeRef, {
 
   return (
     <div className="container-escolher-time">
-      <button className="btn-ajuda" onClick={() => setShowAjuda(true)}>❓ Ajuda</button>
-      <button className="btn-ajuda" onClick={() => setShowRegras(true)}>📋 Regras</button>
-      {showAjuda && <AjudaModal onClose={() => setShowAjuda(false)} />}
-        {showRegras && <RegrasCadastroModal onClose={() => setShowRegras(false)} />}
-
-
       {erroCarregamento && (
         <div className="erro-carregamento">
           ⚠️ Não foi possível carregar os dados iniciais. Verifique sua conexão ou tente novamente mais tarde.
@@ -280,8 +274,7 @@ await updateDoc(timeRef, {
       )}
 
       <div className="card">
-        <h2>👥 Criar ou Ingressar em um Time</h2>
-
+        <h2 className="titulo-card">Somente para novos cadastros</h2>
         <div className="tabs">
           <button className={modo === "ingressar" ? "active" : ""} onClick={() => setModo("ingressar")}>🚪 Ingressar</button>
           <button className={modo === "criar" ? "active" : ""} onClick={() => setModo("criar")}>✨ Criar</button>
@@ -304,7 +297,7 @@ await updateDoc(timeRef, {
     className="btn-ver-senha"
     onClick={() => setMostrarSenha(!mostrarSenha)}
   >
-    {mostrarSenha ? "🙈 Ocultar" : "👁️ Mostrar"}
+    {mostrarSenha ? "🙈" : "👁️"}
   </button>
 </div>
 
@@ -331,7 +324,7 @@ await updateDoc(timeRef, {
     className="btn-ver-senha"
     onClick={() => setMostrarSenha(!mostrarSenha)}
   >
-    {mostrarSenha ? "🙈 Ocultar" : "👁️ Mostrar"}
+    {mostrarSenha ? "🙈" : "👁️"}
   </button>
 </div>
 
@@ -367,7 +360,6 @@ await updateDoc(timeRef, {
 
         {mensagem && <p className="mensagem">{mensagem}</p>}
 
-        <button className="btn-sair" onClick={handleSair}>🔙 Sair</button>
       </div>
     </div>
   );

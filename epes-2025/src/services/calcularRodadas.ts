@@ -1,22 +1,60 @@
 export interface ResultadoRodada {
   ea: number;
-  demanda: number;
+  demanda: number;          // demanda atribuída pelo share (antes de capacidade)
+  vendas: number;           // vendas efetivas (após limite de capacidade)
   receita: number;
   custo: number;
   lucro: number;
   reinvestimento: number;
   caixaFinal: number;
   cvu: number;
-  backlog: boolean;
+  backlog: boolean;         // true quando demanda > vendas (faltou capacidade)
   satisfacao: number;
   evento?: string;
-  share?: number;           // % para UI (compatível com seu código)
-  // novo, útil para cálculos:
+  share?: number;           // % para UI (compatível)
   shareFraction?: number;   // 0..1
 }
 
+// ===== NOVO: tipos para cálculo coletivo =====
+export interface EquipeInput {
+  id: string;                 // identificador do time
+  preco: number;
+  qualidade: number;          // 0..100
+  marketingBonus: number;     // ex.: 0..100 (seu padrão)
+  equipeBonus: number;        // 0..100
+  beneficioBonus: number;     // 0|10|15|20 – cupom/brinde/frete
+  capacidade: number;         // limite de vendas
+  publicoAlvo: string;        // "Jovens (15–24 anos)", etc.
+  caixaAcumulado: number;     // saldo anterior (para somar 80%)
+}
+
+export interface ParametrosGlobais {
+  refPrice: number;           // P*
+  marketSize: number;         // tamanho total do mercado
+  beta: number;               // temperatura do softmax
+  shareCap?: number;          // teto de share por time (opcional)
+  fixedTeamCost: number;      // custo fixo por rodada
+  ea50: number;               // ponto médio da sigmoide (se usado)
+  eaK: number;                // inclinação da sigmoide (se usado)
+  reinvestRate: number;       // 0.20
+}
+
+export interface ResultadoColetivoPorTime extends ResultadoRodada {
+  teamId: string;
+  unitCost: number;
+}
+
+export interface ResultadoColetivo {
+  resultados: ResultadoColetivoPorTime[]; // um por equipe
+  ranking: { teamId: string; lucro: number }[]; // ordenado desc
+  somaSales: number;
+  somaShares: number; // ~1
+}
+
+// ================= Helpers =================
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
 export function calcularCVU(qualidade: number, eficiencia: number): number {
-  // sua fórmula mantida, mas use eficiência coerente (0..100)
   const base = 20;
   const alpha = 0.2;
   const beta = 0.1;
@@ -24,171 +62,274 @@ export function calcularCVU(qualidade: number, eficiencia: number): number {
   return Math.max(0, parseFloat(cvu.toFixed(2)));
 }
 
-// ===== helpers locais =====
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+const priceScore = (p: number, refPrice: number) => {
+  const denom = 0.5 * refPrice || 1;
+  return clamp(1 - (p - refPrice) / denom, 0, 1);
+};
 
-// score de preço relativo ao preço de referência (P*)
-function priceScore(p: number, refPrice: number) {
-  const denom = 0.5 * refPrice; // deslocar ±50% leva score ~0
-  return clamp(1 - (p - refPrice) / denom, 0, 1); // 0..1
-}
-
-// transforma “marketingBonus” em um score suave (0..1)
-function marketingScoreFromBonus(bonusPct: number, boost: number) {
+const marketingScoreFromBonus = (bonusPct: number, boost: number) => {
   const spend = Math.max(0, bonusPct) * 1000; // compatível com seu custo
-  const raw = Math.log(1 + spend) / 10;
+  const raw = Math.log(1 + spend) / 10;       // retorno decrescente
   return clamp((1 + boost) * raw, 0, 1);
-}
+};
 
-// sigmóide: 0..1, controla “propensão de compra” via EA
-function sigmoid(x: number, x0: number, k: number) {
-  return 1 / (1 + Math.exp(-(x - x0) / k));
-}
+const softmax = (arr: number[], beta: number) => {
+  const scaled = arr.map((x) => x * beta);
+  const m = Math.max(...scaled);
+  const exps = scaled.map((x) => Math.exp(x - m));
+  const sum = exps.reduce((a, b) => a + b, 0) || 1;
+  return exps.map((e) => e / sum);
+};
 
-export function calcularRodada(d: {
-  preco: number;
-  qualidade: number;
-  marketingBonus: number;
-  equipeBonus: number;
-  beneficioBonus: number;
-  capacidade: number;
-  publicoAlvo: string;
-  caixaAcumulado: number;
-  precoMedioMercado?: number;  // P*
-  marketSize?: number;
-  eaDosOutrosTimes?: number[]; // ignorado neste modo “vs mercado”
-}): ResultadoRodada {
+const capShares = (shares: number[], cap?: number) => {
+  if (cap == null) return shares;
+  const capped = shares.map((x) => Math.min(x, cap));
+  const sum = capped.reduce((a, b) => a + b, 0) || 1;
+  return capped.map((x) => x / sum);
+};
+
+// ===== Mapas (mantidos do seu código) =====
+const qualidadeMultiplicador: Record<string, number> = {
+  "Jovens (15–24 anos)": 0.8,
+  "Adultos (25–40 anos)": 1.0,
+  "Sêniores (40+)": 1.2,
+  "Classe A/B": 1.25,
+  "Classe C/D": 0.8,
+};
+
+const marketingMultiplicador: Record<string, number> = {
+  "Jovens (15–24 anos)": 1.3,
+  "Adultos (25–40 anos)": 1.0,
+  "Sêniores (40+)": 1.2,
+  "Classe A/B": 1.1,
+  "Classe C/D": 1.15,
+};
+
+const equipeMultiplicador: Record<string, number> = {
+  "Jovens (15–24 anos)": 0.9,
+  "Adultos (25–40 anos)": 1.0,
+  "Sêniores (40+)": 1.3,
+  "Classe A/B": 1.1,
+  "Classe C/D": 0.9,
+};
+
+const elasticidadePreco: Record<string, number> = {
+  "Jovens (15–24 anos)": 1.2,
+  "Adultos (25–40 anos)": 1.0,
+  "Sêniores (40+)": 0.8,
+  "Classe A/B": 0.9,
+  "Classe C/D": 1.5,
+};
+
+const beneficioBonusExtra: Record<string, number> = {
+  "Cupom|Classe C/D": 5,
+  "Brinde|Jovens (15–24 anos)": 5,
+  "Frete grátis|Adultos (25–40 anos)": 5,
+  "Frete grátis|Sêniores (40+)": 5,
+};
+
+// ========== CÁLCULO COLETIVO ==========
+export function calcularRodadaColetiva(
+  equipes: EquipeInput[],
+  params: Partial<ParametrosGlobais> = {}
+): ResultadoColetivo {
   const {
-    preco,
-    qualidade,
-    marketingBonus,
-    equipeBonus,
-    beneficioBonus,
-    capacidade,
-    publicoAlvo,
-    caixaAcumulado,
-    precoMedioMercado = 100,
-    marketSize = 10000,
-  } = d;
+    refPrice = 100,
+    marketSize = 2000,
+    beta = 3.0,
+    shareCap,
+    fixedTeamCost = 5000,
+    ea50 = 100,
+    eaK = 30,
+    reinvestRate = 0.2,
+    subRate = 0.5, // fração da demanda não atendida que migra para concorrentes
+  } = params as any;
 
-  // ===== mapas do seu código (mantidos) =====
-  const qualidadeMultiplicador: Record<string, number> = {
-    "Jovens (15–24 anos)": 0.8,
-    "Adultos (25–40 anos)": 1.0,
-    "Sêniores (40+)": 1.2,
-    "Classe A/B": 1.25,
-    "Classe C/D": 0.8,
-  };
+  if (!equipes || equipes.length === 0) {
+    return { resultados: [], ranking: [], somaSales: 0, somaShares: 0 };
+  }
 
-  const marketingMultiplicador: Record<string, number> = {
-    "Jovens (15–24 anos)": 1.3,
-    "Adultos (25–40 anos)": 1.0,
-    "Sêniores (40+)": 1.2,
-    "Classe A/B": 1.1,
-    "Classe C/D": 1.15,
-  };
+  // 1) EA por equipe (linear, com públicos)
+  const eas = equipes.map((t) => {
+    const publico = (t.publicoAlvo || "").trim();
+    const pScore = priceScore(t.preco > 0 ? t.preco : refPrice, refPrice);
+    const mScore = marketingScoreFromBonus(
+      t.marketingBonus ?? 0,
+      (marketingMultiplicador[publico] ?? 1) - 1
+    );
 
-  const equipeMultiplicador: Record<string, number> = {
-    "Jovens (15–24 anos)": 0.9,
-    "Adultos (25–40 anos)": 1.0,
-    "Sêniores (40+)": 1.3,
-    "Classe A/B": 1.1,
-    "Classe C/D": 0.9,
-  };
+    const beneficioTipo =
+      t.beneficioBonus === 10 ? "Cupom" :
+      t.beneficioBonus === 15 ? "Brinde" :
+      t.beneficioBonus === 20 ? "Frete grátis" : "Nenhum";
+    const bonusExtra = beneficioBonusExtra[`${beneficioTipo}|${publico}`] ?? 0;
+    const beneficio = (t.beneficioBonus ?? 0) + bonusExtra;
 
-  const elasticidadePreco: Record<string, number> = {
-    "Jovens (15–24 anos)": 1.2,
-    "Adultos (25–40 anos)": 1.0,
-    "Sêniores (40+)": 0.8,
-    "Classe A/B": 0.9,
-    "Classe C/D": 1.5,
-  };
+    const eaLinear =
+      100 * pScore +
+      (t.qualidade ?? 0) * (qualidadeMultiplicador[publico] ?? 1) +
+      100 * mScore +
+      (t.equipeBonus ?? 0) * (equipeMultiplicador[publico] ?? 1) +
+      beneficio;
 
-  const beneficioBonusExtra: Record<string, number> = {
-    "Cupom|Classe C/D": 5,
-    "Brinde|Jovens (15–24 anos)": 5,
-    "Frete grátis|Adultos (25–40 anos)": 5,
-    "Frete grátis|Sêniores (40+)": 5,
-  };
+    // opcional: apertar/afrouxar com sigmoide ao redor de ea50
+    const prop = 1 / (1 + Math.exp(-(eaLinear - ea50) / eaK));
+    // Incorporar elasticidade de preço no score antes do softmax
+    const eps = elasticidadePreco[publico] ?? 1.0;
+    const price = t.preco > 0 ? t.preco : refPrice;
+    const priceMult = Math.pow(refPrice / price, eps);
+    const eaPriceAdjusted = eaLinear * priceMult;
+    return { eaLinear: eaPriceAdjusted, prop };
+  });
 
-  // ===== parâmetros padrão da “temporada” (podem vir do banco depois) =====
-  const refPrice = precoMedioMercado;   // P*
-  const fixedTeamCost = 5000;           // custo fixo por rodada (padrão)
-  const ea50 = 100;                     // EA onde propensão = 0.5
-  const eaK = 30;                       // inclinação da sigmóide
+    // 2) Softmax sobre EA normalizado com ganho + slight jitter (quebra empates)
+    const eaVals = eas.map((e) => e.eaLinear);
+    const minEA = Math.min(...eaVals);
+    const maxEA = Math.max(...eaVals);
 
-  // ===== normalizações =====
-  const publico = (publicoAlvo || "").trim();
-  const eps = elasticidadePreco[publico] ?? 1.0;
+    // normaliza 0..1; se todos iguais, evita divisão por zero
+    let normEA: number[];
+    if (maxEA - minEA < 1e-6) {
+      normEA = eaVals.map(() => 1);
+    } else {
+      normEA = eaVals.map((x) => (x - minEA) / (maxEA - minEA));
+    }
 
-  const p = preco > 0 ? preco : refPrice;
-  const q = qualidade ?? 0;
-  const mktBonus = marketingBonus ?? 0;
-  const eqBonus = equipeBonus ?? 0;
+    // 🔎 Aumenta contraste (gamma) e quebra empates com um jitter estável por índice
+    const gamma = 1.6; // ↑ se precisar mais contraste
+    normEA = normEA.map((x, i) => Math.pow(x + 1e-6 * (i + 1), gamma));
 
-  // tipo de benefício + bônus extra por público
-  const beneficioTipo =
-    beneficioBonus === 10 ? "Cupom" :
-    beneficioBonus === 15 ? "Brinde" :
-    beneficioBonus === 20 ? "Frete grátis" : "Nenhum";
-  const bonusExtra = beneficioBonusExtra[`${beneficioTipo}|${publico}`] ?? 0;
-  const beneficio = beneficioBonus + bonusExtra;
+    // 💥 Beta mais agressivo (suba se necessário)
+    const betaEff = typeof beta === "number" ? beta : 3.0;
+    // ⚠️ SE VOCÊ PASSA shareCap em algum lugar, temporariamente desative para testar: deixe `undefined` ou >0.8
 
-  // ===== EA (linear) =====
-  const pScore = priceScore(p, refPrice); // 0..1
-  const mScore = marketingScoreFromBonus(mktBonus, (marketingMultiplicador[publico] ?? 1) - 1); // 0..1
+    let shares = softmax(normEA, betaEff);
+    shares = capShares(shares, shareCap);
+    const somaShares = shares.reduce((a, b) => a + b, 0);
 
-  const eaLinear =
-    (100 * pScore) +                                   // preço relativo (0..100)
-    q * (qualidadeMultiplicador[publico] ?? 1) +       // qualidade ponderada
-    (mScore * 100) +                                   // marketing (0..100)
-    eqBonus * (equipeMultiplicador[publico] ?? 1) +    // equipe ponderada
-    beneficio;                                         // benefício
+    console.log("[DEBUG][coletivo] EA:", eaVals);
+    console.log("[DEBUG][coletivo] EA_norm+gain:", normEA);
+    console.log("[DEBUG][coletivo] betaEff:", betaEff, "shareCap:", shareCap);
+    console.log("[DEBUG][coletivo] shares:", shares, "somaShares:", somaShares);
 
-  // ===== Procura “vs mercado” =====
-  const propensao = sigmoid(eaLinear, ea50, eaK);      // 0..1
-  const fatorPreco = Math.pow(refPrice / p, eps);      // elasticidade
-  const demandaBruta = marketSize * propensao * fatorPreco;
+  // 4) Demanda e vendas (ajustado com redistribuição proporcional)
+  let demandRaw = equipes.map((t, i) => marketSize * shares[i]);
 
-  // ===== Vendas & backlog =====
-  const vendas = Math.min(demandaBruta, capacidade);
-  const houveBacklog = demandaBruta > capacidade;
+  // Aplicar limite de capacidade inicial
+  let sales = equipes.map((t, i) => Math.min(demandRaw[i], Math.max(0, t.capacidade || 0)));
 
-  // ===== Eficiência coerente (0..100) =====
-  const eficiencia = Math.min(100, 50 + eqBonus);      // proxy simples: base 50 + bônus de equipe
-  const cvu = calcularCVU(q, eficiencia);
+  // Declarar uma vez e atualizar depois da redistribuição
+  let somaSales = sales.reduce((a, b) => a + b, 0);
+  console.log("[DEBUG][coletivo] marketSize:", marketSize);
+  console.log("[DEBUG][coletivo] demandRaw:", demandRaw);
+  console.log("[DEBUG][coletivo] capacidade:", equipes.map(t => t.capacidade || 0));
+  console.log("[DEBUG][coletivo] sales.beforeRedistrib:", sales, "somaSales:", somaSales);
 
-  // ===== Custos =====
-  const custoVariavel = vendas * cvu;
-  const custoMarketing = mktBonus * 1000;
-  const custoEquipe = eqBonus * 1000;
-  const custoBeneficio = beneficio * 1000;
-  const custoTotal = custoVariavel + custoMarketing + custoEquipe + custoBeneficio + fixedTeamCost;
+// Verificar se há mercado não atendido e redistribuir parcialmente (substituibilidade)
+let totalSales = sales.reduce((a, b) => a + b, 0);
+let sobra = marketSize - totalSales;
 
-  // ===== Resultado financeiro =====
-  const receita = vendas * p;
-  const lucroBruto = receita - custoTotal;
-  const reinvestimento = Math.max(0, lucroBruto) * 0.2;
-  const caixaFinal = caixaAcumulado + Math.max(0, lucroBruto) * 0.8;
+// quanto de fato será realocado para concorrentes (0..sobra)
+const realocar = sobra > 0 ? sobra * subRate : 0;
 
-  // ===== Share “potencial” (fração do mercado) =====
-  const shareFraction = demandaBruta / marketSize;     // 0..>1 (normalmente 0..1)
-  const sharePct = parseFloat((clamp(shareFraction, 0, 1) * 100).toFixed(2));
+if (realocar > 0.01) {
+  // candidatos que ainda têm capacidade
+  const candidatos = equipes
+    .map((t, i) => ({
+      i,
+      cap: Math.max(0, t.capacidade || 0),
+      flex: Math.max(0, (t.capacidade || 0) - sales[i]),
+      weight: Math.max(1e-6, shares[i]), // pondera por share (EA)
+    }))
+    .filter((c) => c.flex > 0);
 
-  return {
-    ea: parseFloat(eaLinear.toFixed(2)),
-    demanda: Math.round(demandaBruta),
-    receita: parseFloat(receita.toFixed(2)),
-    custo: parseFloat(custoTotal.toFixed(2)),
-    lucro: parseFloat(lucroBruto.toFixed(2)),
-    reinvestimento: parseFloat(reinvestimento.toFixed(2)),
-    caixaFinal: parseFloat(caixaFinal.toFixed(2)),
-    cvu: parseFloat(cvu.toFixed(2)),
-    backlog: houveBacklog,
-    satisfacao: Math.min(100, eaLinear / 2),
-    // ⚠️ aplicar a penalidade de backlog NA PRÓXIMA RODADA (no server)
-    evento: houveBacklog ? "PENALIDADE_NEXT" : undefined,
-    share: sharePct,                // em % para UI (compatível)
-    shareFraction                   // fração 0..1 (novo)
-  };
+  const somaPeso = candidatos.reduce((a, c) => a + c.weight, 0);
+  if (somaPeso > 0) {
+    // não pode realocar mais que a flex total
+    const flexTotal = candidatos.reduce((a, c) => a + c.flex, 0);
+    const reallocate = Math.min(realocar, flexTotal);
+
+    for (const c of candidatos) {
+      const add = (c.weight / somaPeso) * reallocate;
+      sales[c.i] = Math.min(c.cap, sales[c.i] + add);
+    }
+  }
+}
+
+// Recalcular após redistribuição
+somaSales = sales.reduce((a, b) => a + b, 0);
+console.log("[DEBUG][coletivo] sobra:", sobra, "subRate:", subRate, "realocar:", realocar);
+console.log("[DEBUG][coletivo] sales.afterRedistrib:", sales, "somaSales:", somaSales);
+
+  // 5) Custos e resultados
+  const resultados: ResultadoColetivoPorTime[] = equipes.map((t, i) => {
+    const publico = (t.publicoAlvo || "").trim();
+    const eficiencia = Math.min(100, 50 + (t.equipeBonus ?? 0)); // proxy simples
+    const unit = calcularCVU(t.qualidade ?? 0, eficiencia);
+
+    const receita = sales[i] * (t.preco > 0 ? t.preco : refPrice);
+    const custoVariavel = sales[i] * unit;
+    const custoMarketing = (t.marketingBonus ?? 0) * 1000;
+    const custoEquipe = (t.equipeBonus ?? 0) * 1000;
+    const beneficioTipo =
+      t.beneficioBonus === 10 ? "Cupom" :
+      t.beneficioBonus === 15 ? "Brinde" :
+      t.beneficioBonus === 20 ? "Frete grátis" : "Nenhum";
+    const bonusExtra = beneficioBonusExtra[`${beneficioTipo}|${publico}`] ?? 0;
+    const custoBeneficio = ( (t.beneficioBonus ?? 0) + bonusExtra ) * 1000;
+
+    const custoTotal = custoVariavel + custoMarketing + custoEquipe + custoBeneficio + fixedTeamCost;
+    const lucro = receita - custoTotal;
+
+    const reinvest = lucro > 0 ? lucro * reinvestRate : 0;
+    const cashToFinal = lucro > 0 ? lucro * (1 - reinvestRate) : 0;
+
+    const eaLinear = eas[i].eaLinear;
+    const shareFraction = demandRaw[i] / marketSize; // para UI
+
+    const resultado: ResultadoColetivoPorTime = {
+      teamId: t.id,
+      ea: parseFloat(eaLinear.toFixed(2)),
+      demanda: Math.round(demandRaw[i]),
+      vendas: Math.round(sales[i]),
+      receita: parseFloat(receita.toFixed(2)),
+      custo: parseFloat(custoTotal.toFixed(2)),
+      lucro: parseFloat(lucro.toFixed(2)),
+      reinvestimento: parseFloat(reinvest.toFixed(2)),
+      caixaFinal: parseFloat((t.caixaAcumulado + Math.max(0, cashToFinal)).toFixed(2)),
+      cvu: parseFloat(unit.toFixed(2)),
+      backlog: demandRaw[i] > sales[i],
+      satisfacao: Math.min(100, eaLinear / 2),
+      evento: demandRaw[i] > sales[i] ? "PENALIDADE_NEXT" : undefined,
+      share: parseFloat((clamp(shareFraction, 0, 1) * 100).toFixed(2)),
+      shareFraction: clamp(shareFraction, 0, 1),
+      unitCost: parseFloat(unit.toFixed(2)),
+    };
+
+    return resultado;
+  });
+
+  // 6) Ranking por lucro
+  const ranking = resultados
+    .map((r) => ({ teamId: (r as any).teamId as string, lucro: r.lucro }))
+    .sort((a, b) => b.lucro - a.lucro);
+
+  return { resultados, ranking, somaSales, somaShares };
+}
+
+// ====== PREVIEW para uma equipe (ainda coletivo) ======
+export function calcularRodadaPreview(
+  todasEquipes: EquipeInput[],
+  timeId: string,
+  params?: Partial<ParametrosGlobais>
+): ResultadoColetivoPorTime | null {
+  const full = calcularRodadaColetiva(todasEquipes, params);
+  return full.resultados.find((r) => (r as any).teamId === timeId) || null;
+}
+
+// ====== DEPRECATED: cálculo individual (proíbo uso na produção) ======
+export function calcularRodada(_: any): ResultadoRodada {
+  throw new Error(
+    "[calcularRodada] Removido o cálculo individual. Use calcularRodadaColetiva(equipes, params) ou calcularRodadaPreview(todasEquipes, timeId, params)."
+  );
 }

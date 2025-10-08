@@ -1,143 +1,149 @@
+/* Fundo preto fosco e centralização */
+.container-escolher-time {
+  min-height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-grad, linear-gradient(135deg, #0e2a47 0%, #0a1e31 45%, #121212 100%));
+  color: #fff;
+  position: relative;
+}
+
+/* Card centralizado com efeito vidro escuro */
 .card {
-  max-width: 420px;
-  margin: 40px auto;
-  padding: 30px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  background: linear-gradient(135deg, rgba(17,25,40,0.60), rgba(17,25,40,0.46)) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 40px;
+  width: 400px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
   text-align: center;
-  font-family: 'Segoe UI', sans-serif;
+}
+
+/* Textos brancos */
+.card h2,
+.card h3,
+.mensagem {
+  color: #fff;
+}
+
+/* Campos de entrada no tema escuro */
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 10px;
+  border-radius: 8px;
+  width: 100%;
+  margin-bottom: 12px; /* espaçamento vertical mínimo entre os campos */
+}
+
+/* Campo de senha com ícone de olho */
+.campo-senha {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px; /* distância mínima horizontal entre input e o ícone */
+  margin-bottom: 12px; /* garante também espaçamento vertical entre campos */
+}
+
+.campo-senha input[type="password"] {
+  flex: 1;
+}
+
+.campo-senha .btn-ver-senha {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 18px;
+  transition: color 0.2s ease-in-out;
+}
+
+.campo-senha .btn-ver-senha:hover {
+  color: #fff;
+}
+
+input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Botões */
+button {
+  background: #1f1f1f;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background: #333;
+}
+
+/* Botões de ajuda */
+.btn-ajuda {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .tabs {
   display: flex;
   justify-content: center;
-  margin-bottom: 20px;
+  align-items: center;
+  column-gap: 20px; /* espaçamento horizontal fixo entre botões */
+  row-gap: 10px; /* espaçamento vertical para telas menores */
+  flex-wrap: wrap;
+  margin: 20px 0;
 }
 
 .tabs button {
-  flex: 1;
-  padding: 10px;
-  border: none;
-  background: #eee;
+  flex: 1; /* Faz cada botão ocupar o mesmo espaço */
+  background: transparent;
+  color: #ccc;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 10px 16px;
   cursor: pointer;
-  font-weight: bold;
-  transition: 0.3s;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.tabs button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .tabs .active {
-  background: #0078d4;
-  color: white;
+  background: #2a2a2a;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
-input {
-  width: 100%;
-  padding: 10px;
-  margin: 8px 0;
-  border-radius: 8px;
-  border: 1px solid #ccc;
+/* Mensagens e códigos */
+.codigo-gerado {
+  color: #aaa;
+  margin-bottom: 8px;
 }
-
-button {
-  width: 100%;
-  padding: 12px;
-  margin-top: 10px;
-  background: #0078d4;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: 0.3s;
-}
-
-button:hover {
-  background: #005fa3;
-}
-
-.mensagem {
-  margin-top: 15px;
-  font-size: 0.95rem;
-  color: #333;
-}
-
-.btn-sair {
-  margin-top: 20px;
-  background: transparent;
-  color: #0078d4;
-  border: 2px solid #0078d4;
-  padding: 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: 0.3s;
-}
-
-.btn-sair:hover {
-  background: #0078d4;
-  color: white;
-}
-
-
-.mensagem-explicativa {
-  background-color: #e0f0ff; /* azul claro */
-  border: 1px solid #b3d4fc; /* borda azul suave */
-  padding: 16px;
-  border-radius: 8px;
-  color: #003366; /* azul escuro para o texto */
-  font-size: 16px;
-  line-height: 1.6;
-  margin-bottom: 24px;
-}
-
-
-
-
-.btn-ajuda {
-  background-color: #6C63FF;
-  color: white;
-  font-weight: 500;
-  font-size: 0.875rem;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  border: none;
-  cursor: pointer;
-  margin-bottom: 1rem;
-  transition: background-color 0.2s ease;
-  max-width: 200px;
-  width: 100%;
-  text-align: center;
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-}
-
 
 .erro-carregamento {
-  background-color: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffeeba;
-  padding: 1rem;
-  border-radius: 0.5rem;
-  margin-bottom: 1rem;
-  font-weight: bold;
+  background-color: rgba(255, 0, 0, 0.1);
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  color: #ff8080;
+  padding: 8px;
+  border-radius: 8px;
   text-align: center;
 }
 
-.mensagem {
-  background-color: #ffecec;
-  color: #d32f2f;
-  padding: 1rem;
-  border-radius: 0.5rem;
-  margin-top: 1rem;
-  font-weight: bold;
-  text-align: center;
-}
-
-
-.codigo-gerado {
-  margin-top: 0.5rem;
-  font-weight: bold;
-  color: #007bff;
-  font-size: 1.1rem;
+/* Botão de sair */
+.btn-sair {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+  margin-top: 16px;
 }

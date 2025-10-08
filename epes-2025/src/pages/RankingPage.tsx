@@ -6,11 +6,14 @@ import {
   getDocs,
   doc,
   getDoc,
+  query,
+  where,
 } from "firebase/firestore";
 
 type TimeDoc = {
   id: string;
   nome?: string;
+  turmaId?: string;
 };
 
 type ResultadoOficial = {
@@ -44,6 +47,7 @@ const RankingPage: React.FC = () => {
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [rodadaAtual, setRodadaAtual] = useState<number>(1);
   const [rodadaAtiva, setRodadaAtiva] = useState<boolean>(false);
+  const [turmaIdEfetiva, setTurmaIdEfetiva] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -51,7 +55,7 @@ const RankingPage: React.FC = () => {
         setCarregando(true);
         setMensagem(null);
 
-        // 1) Ler controle global
+        // 1) Config global
         const geralSnap = await getDoc(doc(db, "configuracoes", "geral"));
         const g = geralSnap.data() || {};
         const rAtual = Number(g.rodadaAtual ?? 1);
@@ -59,13 +63,12 @@ const RankingPage: React.FC = () => {
         setRodadaAtual(rAtual);
         setRodadaAtiva(rAtiva);
 
-        // 2) Carregar todos os times
-        const timesSnap = await getDocs(collection(db, "times"));
-        const times: TimeDoc[] = timesSnap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        }));
+        // turma ativa (busca em config; se ausente, deduziremos pelos times)
+        const turmaIdConfig: string | undefined = (g.turmaId as string) || (g.codigoTurma as string);
 
+        // 2) Times
+        const timesSnap = await getDocs(collection(db, "times"));
+        const times: TimeDoc[] = timesSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
         if (times.length === 0) {
           setRanking([]);
           setMensagem("Nenhum time cadastrado ainda.");
@@ -73,7 +76,12 @@ const RankingPage: React.FC = () => {
           return;
         }
 
-        // 3) Definir rodadas oficialmente fechadas
+        const turmaLocal = String(
+          turmaIdConfig ?? times.find((t: any) => t.turmaId)?.turmaId ?? "DEFAULT_TURMA"
+        );
+        setTurmaIdEfetiva(turmaLocal);
+
+        // 3) Rodadas fechadas
         const ultimaRodadaFechada = rAtiva ? rAtual - 1 : rAtual;
         if (ultimaRodadaFechada <= 0) {
           setRanking([]);
@@ -82,72 +90,78 @@ const RankingPage: React.FC = () => {
           return;
         }
 
-        // 4) Agregar resultados oficiais: resultadosOficiais/{timeId}/rodada{n}
+        // 4) Buscar resultados oficiais (paralelo)
+        type Parcial = { lucro: number; satisfacao: number; caixaFinal: number; atraso: boolean; foraPrazo: boolean };
         const linhas: LinhaRanking[] = [];
-        for (const t of times) {
-          let totalLucro = 0;
-          let totalSatisf = 0;
-          let count = 0;
-          let compliant = 0;
-          let ultimoCaixa = 0;
-          let ultimaRodadaComCaixa = 0;
 
-          for (let n = 1; n <= ultimaRodadaFechada; n++) {
-            const sub = collection(db, "resultadosOficiais", t.id, `rodada${n}`);
-            const subSnap = await getDocs(sub);
+        await Promise.all(
+          times.map(async (t) => {
+            let totalLucro = 0;
+            let totalSatisf = 0;
+            let count = 0;
+            let compliant = 0;
+            let ultimoCaixa = 0;
+            let ultimaRodadaComCaixa = 0;
 
-            // Pode haver 0 ou 1 doc (ou mais, se você guardar históricos); vamos somar todos status "✅"
-            subSnap.forEach((docSnap) => {
-              const r = docSnap.data() as ResultadoOficial;
-              if (r.status === "✅") {
-                const lucro = r.lucro ?? 0;
-                const sat = r.satisfacao ?? 0;
-                const caixa = r.caixaFinal ?? 0;
+            const porRodada: Parcial[] = [];
+            for (let n = 1; n <= ultimaRodadaFechada; n++) {
+              // novo caminho canônico: /resultadosOficiais/{turmaId}/rodada_{n}/{timeId}
+              const resRef = doc(db, "resultadosOficiais", turmaLocal, `rodada_${n}`, t.id);
+              const resSnap = await getDoc(resRef);
+              if (!resSnap.exists()) continue;
+              const r = resSnap.data() as ResultadoOficial;
+              // se tiver status e não for ✅, ignora
+              if (r.status && r.status !== "✅") continue;
+              porRodada.push({
+                lucro: r.lucro ?? 0,
+                satisfacao: r.satisfacao ?? 0,
+                caixaFinal: r.caixaFinal ?? 0,
+                atraso: !!r.atraso,
+                foraPrazo: !!r.decisaoForaDoPrazo,
+              });
+            }
 
-                totalLucro += lucro;
-                totalSatisf += sat;
-                count += 1;
+            porRodada.forEach((r, idx) => {
+              totalLucro += r.lucro;
+              totalSatisf += r.satisfacao;
+              count += 1;
 
-                const ok =
-                  caixa >= 0 &&
-                  !r.atraso &&
-                  !r.decisaoForaDoPrazo;
-                if (ok) compliant += 1;
+              const ok = r.caixaFinal >= 0 && !r.atraso && !r.foraPrazo;
+              if (ok) compliant += 1;
 
-                // usar o caixa final da rodada mais recente encontrada
-                if (n >= ultimaRodadaComCaixa) {
-                  ultimaRodadaComCaixa = n;
-                  ultimoCaixa = caixa;
-                }
+              // caixa mais recente observado
+              const rodadaNum = Math.min(ultimaRodadaFechada, idx + 1);
+              if (rodadaNum >= ultimaRodadaComCaixa) {
+                ultimaRodadaComCaixa = rodadaNum;
+                ultimoCaixa = r.caixaFinal;
               }
             });
-          }
 
-          const lucroMedio = count > 0 ? totalLucro / count : 0;
-          const satisfacaoMedia = count > 0 ? totalSatisf / count : 0;
-          const complianceScore = count > 0 ? (compliant / count) * 100 : 0;
+            const lucroMedio = count > 0 ? totalLucro / count : 0;
+            const satisfacaoMedia = count > 0 ? totalSatisf / count : 0;
+            const complianceScore = count > 0 ? (compliant / count) * 100 : 0;
 
-          // 5) Score EPES (40% Caixa • 30% Lucro Médio • 20% Satisfação • 10% Compliance)
-          const scoreEPES =
-            ultimoCaixa * 0.4 +
-            lucroMedio * 0.3 +
-            satisfacaoMedia * 0.2 +
-            complianceScore * 0.1;
+            const scoreEPES =
+              ultimoCaixa * 0.4 +
+              lucroMedio * 0.3 +
+              satisfacaoMedia * 0.2 +
+              complianceScore * 0.1;
 
-          linhas.push({
-            id: t.id,
-            nome: t.nome || t.id,
-            caixaAcumulado: ultimoCaixa,
-            lucroTotal: totalLucro,
-            lucroMedio,
-            satisfacaoMedia,
-            complianceScore,
-            rodadasConcluidas: count,
-            scoreEPES,
-          });
-        }
+            linhas.push({
+              id: t.id,
+              nome: t.nome || t.id,
+              caixaAcumulado: ultimoCaixa,
+              lucroTotal: totalLucro,
+              lucroMedio,
+              satisfacaoMedia,
+              complianceScore,
+              rodadasConcluidas: count,
+              scoreEPES,
+            });
+          })
+        );
 
-        // 6) Ordenação (Score > Caixa > Satisfação)
+        // 5) Ordenar e finalizar
         linhas.sort((a, b) => {
           const s = b.scoreEPES - a.scoreEPES;
           if (s !== 0) return s;
@@ -157,13 +171,12 @@ const RankingPage: React.FC = () => {
         });
 
         setRanking(linhas);
-
         if (linhas.every((l) => l.rodadasConcluidas === 0)) {
-          setMensagem("Nenhum resultado oficial encontrado. Feche uma rodada para ver o ranking.");
+          setMensagem(`Nenhum resultado oficial encontrado. Feche ao menos 1 rodada (até #${ultimaRodadaFechada}).`);
         }
       } catch (err: any) {
         console.error(err);
-        setMensagem("Erro ao carregar ranking. Verifique as coleções 'times' e 'resultadosOficiais/*/rodadaN'.");
+        setMensagem("Erro ao carregar ranking. Verifique 'times' e 'resultadosOficiais/{turmaId}/rodada_{N}/{timeId}'.");
       } finally {
         setCarregando(false);
       }
@@ -173,6 +186,7 @@ const RankingPage: React.FC = () => {
   return (
     <div style={{ padding: "2rem" }}>
       <h1>🏆 Ranking EPES</h1>
+      <p style={{ marginTop: 0, color: "#666" }}>Turma: <strong>{turmaIdEfetiva}</strong></p>
 
       <p style={{ marginTop: 4 }}>
         <strong>Critérios:</strong> 40% Caixa (última rodada fechada) • 30% Lucro Médio • 20% Satisfação Média • 10% Compliance

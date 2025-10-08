@@ -3,6 +3,131 @@ import { db } from "../services/firebase";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import "./Informacoes.css";
 
+// Helper: formata números no padrão brasileiro (R$ 1.234,56)
+const formatBRL = (value: any) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  try {
+    return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  } catch {
+    // fallback simples
+    return `R$ ${n.toFixed(2).replace(".", ",")}`;
+  }
+};
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #0e2a47 0%, #0a1e31 45%, #121212 100%)",
+    color: "#eaf2f8",
+  } as React.CSSProperties,
+  container: {
+    maxWidth: 1180,
+    margin: "0 auto",
+    padding: "24px 24px 56px",
+  } as React.CSSProperties,
+  header: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    padding: "12px 0 24px",
+  } as React.CSSProperties,
+  titleWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  } as React.CSSProperties,
+  titleBadge: {
+    padding: "4px 10px",
+    borderRadius: 999,
+    fontSize: 12,
+    letterSpacing: 0.4,
+    color: "#9fd3ff",
+    background: "rgba(159, 211, 255, 0.12)",
+    border: "1px solid rgba(159,211,255,0.25)",
+  } as React.CSSProperties,
+  h1: {
+    margin: 0,
+    fontSize: 28,
+    fontWeight: 800,
+    letterSpacing: 0.2,
+  } as React.CSSProperties,
+  glassCard: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+    backdropFilter: "blur(7px)",
+    WebkitBackdropFilter: "blur(7px)",
+    borderRadius: 16,
+  } as React.CSSProperties,
+  identity: {
+    display: "grid",
+    gridTemplateColumns: "72px 1fr auto",
+    gap: 16,
+    padding: 16,
+    alignItems: "center",
+  } as React.CSSProperties,
+  logoBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    border: "2px solid rgba(255,255,255,0.18)",
+  } as React.CSSProperties,
+  quickRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 16,
+  } as React.CSSProperties,
+  pillBtn: {
+    appearance: "none",
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.06)",
+    color: "#eaf2f8",
+    padding: "10px 14px",
+    borderRadius: 999,
+    cursor: "pointer",
+    fontWeight: 600,
+  } as React.CSSProperties,
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: 16,
+    marginTop: 24,
+  } as React.CSSProperties,
+  callout: {
+    padding: 18,
+    lineHeight: 1.65,
+  } as React.CSSProperties,
+  calloutTitle: { margin: 0, fontSize: 18, fontWeight: 700 } as React.CSSProperties,
+  calloutP: { margin: "8px 0 0", color: "#cbe3ff" } as React.CSSProperties,
+  formBox: { padding: 16, marginTop: 16 } as React.CSSProperties,
+  formLabel: { display: "block", fontSize: 13, marginTop: 10, marginBottom: 6, opacity: 0.9 } as React.CSSProperties,
+  input: {
+    width: "100%",
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.16)",
+    color: "#eaf2f8",
+    padding: "10px 12px",
+    borderRadius: 10,
+  } as React.CSSProperties,
+  textarea: {
+    width: "100%",
+    minHeight: 90,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.16)",
+    color: "#eaf2f8",
+    padding: "10px 12px",
+    borderRadius: 10,
+  } as React.CSSProperties,
+  colorRow: { display: "flex", alignItems: "center", gap: 12, marginTop: 10 } as React.CSSProperties,
+  colorSwatch: { width: 34, height: 34, borderRadius: 8, border: "2px solid rgba(255,255,255,0.2)" } as React.CSSProperties,
+  sectionTitle: { margin: "22px 0 8px", fontSize: 18, fontWeight: 800 } as React.CSSProperties,
+  footerHint: { opacity: 0.8, fontSize: 12, marginTop: 24 } as React.CSSProperties,
+};
+
+// ===== Types =====
 type Rodada = {
   timeId: string;
   publicoAlvo?: string;
@@ -14,6 +139,7 @@ type Rodada = {
   receita?: number;
   custo?: number;
   lucro?: number;
+  lucroAcumulado?: number;
   reinvestimento?: number;
   caixaFinal?: number;
   atraso?: boolean;
@@ -22,11 +148,15 @@ type Rodada = {
 };
 
 type TimeResumo = {
+  timeId: string;
   nome: string;
-  lucroTotal: number;
+  lucroRodada: number;
+  lucroAcumulado: number;
   caixaFinal: number;
+  timestamp?: number;
 };
 
+// ===== Component =====
 export default function Informacoes() {
   const [resumoTurmas, setResumoTurmas] = useState<Record<string, Rodada[]>>({});
   const [mapaDeNomes, setMapaDeNomes] = useState<Record<string, string>>({});
@@ -36,6 +166,8 @@ export default function Informacoes() {
   const [carregando, setCarregando] = useState(true);
   const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
   const [rodadaMaxima, setRodadaMaxima] = useState(10);
+
+  // Carrega limites de rodada
   useEffect(() => {
     const buscarRodadaConfig = async () => {
       try {
@@ -50,15 +182,17 @@ export default function Informacoes() {
     buscarRodadaConfig();
   }, []);
 
+  // Carrega resumo por rodada
   useEffect(() => {
     const fetchResumoGlobal = async () => {
       try {
         setCarregando(true);
+        setErro(null);
 
         // nomes dos times
         const nomes: Record<string, string> = {};
         const timesSnap = await getDocs(collection(db, "times"));
-        timesSnap.docs.forEach(docu => {
+        timesSnap.docs.forEach((docu) => {
           const data = docu.data();
           nomes[docu.id] = (data as any).nome || docu.id;
         });
@@ -67,7 +201,7 @@ export default function Informacoes() {
         // público-alvo por time (de 'empresas/{timeId}')
         const empresasSnap = await getDocs(collection(db, "empresas"));
         const pub: Record<string, string> = {};
-        empresasSnap.docs.forEach(d => {
+        empresasSnap.docs.forEach((d) => {
           const e = d.data() as any;
           pub[d.id] = e.publicoAlvo || "";
         });
@@ -77,25 +211,25 @@ export default function Informacoes() {
         const chavesUnicas = new Set<string>();
 
         // lista de turmas (na sua modelagem times também é turmaId)
-        const codigosTurma = timesSnap.docs.map(d => d.id);
-        // coleta por turma (agora usando resultadosOficiais)
+        const codigosTurma = timesSnap.docs.map((d) => d.id);
+
+        // coleta por turma (usando resultadosOficiais)
         for (const codigoTurma of codigosTurma) {
-          const oficialRef = doc(
+          const rodadaRef = collection(
             db,
             "resultadosOficiais",
             codigoTurma,
-            `rodada${rodadaSelecionada}`,
-            "oficial"
+            `rodada_${rodadaSelecionada}`
           );
-          const oficialSnap = await getDoc(oficialRef);
+          const rodadaSnap = await getDocs(rodadaRef);
 
-          if (oficialSnap.exists()) {
+          rodadaSnap.forEach((oficialSnap) => {
             const data = oficialSnap.data() as Rodada;
-            const chave = `${codigoTurma}_${data.timeId}_${data.timestamp?.seconds || ""}`;
+            const chave = `${codigoTurma}_${data.timeId || oficialSnap.id}_${data.timestamp?.seconds || ""}`;
             if (!chavesUnicas.has(chave)) {
               chavesUnicas.add(chave);
               if (!resultado[codigoTurma]) resultado[codigoTurma] = [];
-              const timeId = data.timeId;
+              const timeId = data.timeId || oficialSnap.id;
               const publicoAlvo = data.publicoAlvo || pub[timeId] || "";
               const vendas =
                 typeof data.vendas === "number"
@@ -105,30 +239,42 @@ export default function Informacoes() {
                   : 0;
               resultado[codigoTurma].push({ ...data, publicoAlvo, vendas });
             }
-          }
+          });
         }
 
         setResumoTurmas(resultado);
-        // ranking simples da rodada (sem exibir score/satisfação)
+
+        // ranking da rodada (ordenado por lucro acumulado)
         const timesResumo: Record<string, TimeResumo> = {};
-        Object.values(resultado).flat().forEach(r => {
-          const nome = nomes[r.timeId] || r.timeId;
-          if (!timesResumo[r.timeId]) {
-            timesResumo[r.timeId] = {
-              nome,
-              lucroTotal: 0,
-              caixaFinal: r.caixaFinal ?? 0,
-            };
-          }
-          timesResumo[r.timeId].lucroTotal += r.lucro ?? 0;
-        });
+        Object.values(resultado)
+          .flat()
+          .forEach((r) => {
+            const nome = nomes[r.timeId] || r.timeId;
+            const lucroRodada = Number(r.lucro ?? 0);
+            const lucroAcumulado = Number(r.lucroAcumulado ?? r.lucro ?? 0);
+            const ts = r.timestamp?.seconds ? Number(r.timestamp.seconds) : 0;
+
+            // mantém o registro mais recente por time, caso haja duplicatas
+            const existing = timesResumo[r.timeId];
+            if (!existing || (ts && (existing.timestamp || 0) < ts)) {
+              timesResumo[r.timeId] = {
+                timeId: r.timeId,
+                nome,
+                lucroRodada,
+                lucroAcumulado,
+                caixaFinal: Number(r.caixaFinal ?? 0),
+                timestamp: ts,
+              };
+            }
+          });
 
         const rankingRodada = Object.values(timesResumo).sort((a, b) => {
-          // ordena por caixaFinal, depois lucroTotal
-          if ((b.caixaFinal ?? 0) !== (a.caixaFinal ?? 0)) {
-            return (b.caixaFinal ?? 0) - (a.caixaFinal ?? 0);
-          }
-          return (b.lucroTotal ?? 0) - (a.lucroTotal ?? 0);
+          // 1) lucro acumulado desc
+          if (b.lucroAcumulado !== a.lucroAcumulado) return b.lucroAcumulado - a.lucroAcumulado;
+          // 2) lucro da rodada desc
+          if (b.lucroRodada !== a.lucroRodada) return b.lucroRodada - a.lucroRodada;
+          // 3) caixa final desc
+          return (b.caixaFinal ?? 0) - (a.caixaFinal ?? 0);
         });
 
         setRanking(rankingRodada);
@@ -142,119 +288,138 @@ export default function Informacoes() {
 
     fetchResumoGlobal();
   }, [rodadaSelecionada]);
+
   return (
-    <div className="page-container">
-      <h2>📊 Relatório Global de Todas as Turmas</h2>
-
-      <div style={{ marginBottom: "2rem" }}>
-        <label htmlFor="rodadaSelect"><strong>Selecionar rodada:</strong></label>{" "}
-        <select
-          id="rodadaSelect"
-          value={rodadaSelecionada}
-          onChange={e => setRodadaSelecionada(Number(e.target.value))}
-        >
-          {Array.from({ length: rodadaMaxima }, (_, i) => i + 1).map(num => (
-            <option key={num} value={num}>
-              Rodada {num}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {erro && <p style={{ padding: "2rem", color: "red" }}>{erro}</p>}
-      {carregando && <p style={{ padding: "2rem" }}>🔄 Carregando dados...</p>}
-
-      {!carregando && ranking.length > 0 && (
-        <>
-          <h3>🏆 Ranking da Rodada {rodadaSelecionada}</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "40px" }}>
-            <thead>
-              <tr style={{ backgroundColor: "#eee" }}>
-                <th>#</th>
-                <th>Time</th>
-                <th>Público-alvo</th>
-                <th>Lucro Total</th>
-                <th>Caixa Final</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ranking.map((t, index) => (
-                <tr key={index} style={{ textAlign: "center" }}>
-                  <td>{index + 1}</td>
-                  <td>{t.nome}</td>
-                  <td>{publicoMap[
-                    Object.keys(mapaDeNomes).find(k => mapaDeNomes[k] === t.nome) || ""
-                  ] || "—"}</td>
-                  <td>R$ {t.lucroTotal.toFixed(2)}</td>
-                  <td>R$ {t.caixaFinal.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      {!carregando &&
-        Object.entries(resumoTurmas).map(([turma, rodadas]) => (
-          <div key={turma} style={{ marginBottom: "3rem" }}>
-            <h3>📘 Time: {mapaDeNomes[turma] || turma}</h3>
-            {rodadas.length === 0 ? (
-              <p>📭 Nenhum resultado registrado nesta rodada.</p>
-            ) : (
-              <>
-                <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px" }}>
-                  <thead>
-                    <tr style={{ backgroundColor: "#eee" }}>
-                      <th>Rodada</th>
-                      <th>Time</th>
-                      <th>Público-alvo</th>
-                      <th>EA</th>
-                      <th>Vendas</th>
-                      <th>Receita</th>
-                      <th>Custo</th>
-                      <th>Lucro</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rodadas.map((r, index) => (
-                      <tr
-                        key={index}
-                        style={{
-                          backgroundColor:
-                            r.caixaFinal !== undefined && r.caixaFinal < 0
-                              ? "#ffe6e6"
-                              : r.atraso
-                              ? "#fff8dc"
-                              : "#fff",
-                          textAlign: "center",
-                        }}
-                      >
-                        <td>{rodadaSelecionada}</td>
-                        <td>{mapaDeNomes[r.timeId] || r.timeId}</td>
-                        <td>{publicoMap[r.timeId] || "—"}</td>
-                        <td>{r.ea ?? "—"}</td>
-                        <td>{(r.vendas ?? r.demanda ?? 0).toLocaleString("pt-BR")}</td>
-                        <td>{r.receita != null ? `R$ ${r.receita.toFixed(2)}` : "—"}</td>
-                        <td>{r.custo != null ? `R$ ${r.custo.toFixed(2)}` : "—"}</td>
-                        <td>{r.lucro != null ? `R$ ${r.lucro.toFixed(2)}` : "—"}</td>
-                        <td>{r.atraso ? "⚠️ Atraso" : (r.status || "✅")}</td>
-                      </tr>
+    <div className="info-page">
+        <div className="info-container">
+              {/* Header */}
+              <header className="info-header">
+               <div style={styles.titleWrap}>
+                    <span style={styles.titleBadge}>EPES • Challenge 2025</span>
+                    <h1 style={styles.h1}>Relatório Global da Competição</h1>
+                </div>
+                <div className="info-header__controls">
+                  <label className="info-select__label" htmlFor="rodadaSelect">Selecionar rodada</label>
+                  <select
+                    id="rodadaSelect"
+                    className="info-select"
+                    value={rodadaSelecionada}
+                    onChange={(e) => setRodadaSelecionada(Number(e.target.value))}
+                  >
+                    {Array.from({ length: rodadaMaxima }, (_, i) => i + 1).map((num) => (
+                      <option key={num} value={num}>Rodada {num}</option>
                     ))}
-                  </tbody>
-                </table>
+                  </select>
+                </div>
+              </header>
 
-                <hr
-                  style={{
-                    margin: "2rem 0",
-                    border: "none",
-                    borderTop: "2px dashed #ccc",
-                  }}
-                />
-              </>
-            )}
-          </div>
-        ))}
-    </div>
+              {erro && <div className="info-alert info-alert--error">{erro}</div>}
+
+              {carregando && (
+                <div className="info-skeleton">
+                  <div className="info-skeleton__bar" />
+                  <div className="info-skeleton__bar" />
+                  <div className="info-skeleton__bar" />
+                </div>
+              )}
+
+              {!carregando && ranking.length > 0 && (
+                <section className="card--glass">
+                  <div className="card__header">
+                    <h3>🏆 Ranking da Rodada {rodadaSelecionada}</h3>
+                  </div>
+                  <div className="table-wrapper">
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Time</th>
+                          <th>Público-alvo</th>
+                          <th>Lucro <br />(rodada)</th>
+                          <th>Lucro <br />acumulado</th>
+                          <th>Recurso Adicional<br />para Investimento</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ranking.map((t, index) => (
+                          <tr key={index}>
+                            <td>{index + 1}</td>
+                            <td>{t.nome}</td>
+                            <td>
+                              {
+                                publicoMap[
+                                  Object.keys(mapaDeNomes).find((k) => mapaDeNomes[k] === t.nome) || t.timeId || ""
+                                ] || "—"
+                              }
+                            </td>
+                                <td>{formatBRL(t.lucroRodada)}</td>
+                                <td>{formatBRL(t.lucroAcumulado)}</td>
+                                <td>{formatBRL(Math.max(0, Number((t.lucroAcumulado || 0) * 0.20)))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+
+              {!carregando &&
+                Object.entries(resumoTurmas).map(([turma, rodadas]) => (
+                  <section key={turma} className="card--glass">
+                    <div className="card__header">
+                      <h3>📘 Time: {mapaDeNomes[turma] || turma}</h3>
+                    </div>
+
+                    {rodadas.length === 0 ? (
+                      <p className="info-empty">📭 Nenhum resultado registrado nesta rodada.</p>
+                    ) : (
+                      <div className="table-wrapper">
+                        <table className="table" style={{ fontSize: "13px" }}>
+                          <thead>
+                            <tr>
+                              <th>Rodada</th>
+                              <th>Time</th>
+                              <th>Público-alvo</th>
+                              <th>EA</th>
+                              <th>Vendas</th>
+                              <th>Receita</th>
+                              <th>Custo</th>
+                              <th>Lucro</th>
+                              <th>Lucro acumulado</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rodadas.map((r, index) => (
+                              <tr
+                                key={index}
+                                className={
+                                  r.caixaFinal !== undefined && r.caixaFinal < 0
+                                    ? "row--danger"
+                                    : r.atraso
+                                    ? "row--warn"
+                                    : undefined
+                                }
+                              >
+                                <td>{rodadaSelecionada}</td>
+                                <td>{mapaDeNomes[r.timeId] || r.timeId}</td>
+                                <td>{publicoMap[r.timeId] || "—"}</td>
+                                <td>{r.ea ?? "—"}</td>
+                                <td>{(r.vendas ?? r.demanda ?? 0).toLocaleString("pt-BR")}</td>
+                                <td>{r.receita != null ? formatBRL(r.receita) : "—"}</td>
+                                <td>{r.custo != null ? formatBRL(r.custo) : "—"}</td>
+                                <td>{r.lucro != null ? formatBRL(r.lucro) : "—"}</td>
+                                <td>{r.lucroAcumulado != null ? formatBRL(r.lucroAcumulado) : "—"}</td>
+                                <td>{r.atraso ? "⚠️ Atraso" : r.status || "✅"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </section>
+                ))}
+            </div>
+        </div>
   );
 }
