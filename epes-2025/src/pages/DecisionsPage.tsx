@@ -8,10 +8,10 @@ import {
   doc,
   getDoc,
   setDoc,
+  onSnapshot, // 👈 NOVO: listener em tempo real
 } from "firebase/firestore";
 import { calcularRodadaPreview } from "../services/calcularRodadas";
 import { useNavigate } from "react-router-dom";
-
 
 import "./DecisionPage.css";
 
@@ -87,7 +87,7 @@ const styles = {
   small: { color: "#cbe3ff", marginTop: 4 } as React.CSSProperties,
 };
 
-const DEBUG = (import.meta as any)?.env?.VITE_DEBUG === "true"; // defina VITE_DEBUG=true para exibir o painel
+const DEBUG = (import.meta as any)?.env?.VITE_DEBUG === "true";
 const dlog = (...args: any[]) => {
   if (DEBUG) console.debug("[DecisionsPage]", ...args);
 };
@@ -95,6 +95,7 @@ const dlog = (...args: any[]) => {
 export default function DecisionPage() {
   const navigate = useNavigate();
   dlog("mount: entrando na tela de decisões");
+
   // ---- helpers para mapear opções para valores ----
   const mapProdutoToQualidade = (s: string) => ({"Básico":10, "Intermediário":20, "Avançado":35, "Premium":50}[s] ?? 10);
   const mapMarketingToBonus = (s: string) => ({"Local":8, "Regional":15, "Nacional":25, "Nacional + Influenciadores":35}[s] ?? 8);
@@ -123,6 +124,9 @@ export default function DecisionPage() {
   const [uid, setUid] = useState("");
   const [isCapitao, setIsCapitao] = useState(false);
 
+  // NOVO: prazo salvo no Firestore (configuracoes/geral.prazo)
+  const [prazoMs, setPrazoMs] = useState<number | null>(null);
+
   // marketSize e orçamento dinâmico
   const [marketSize, setMarketSize] = useState<number>(10000);
   const [orcamentoRodada, setOrcamentoRodada] = useState<number>(500000);
@@ -131,6 +135,7 @@ export default function DecisionPage() {
 
   const codigoTurma = localStorage.getItem("codigoTurma") ?? "";
   const timeIdLS = localStorage.getItem("idDoTime") ?? "";
+
   // ---- peers (decisões das outras equipes da mesma rodada) ----
   const [peerEquipes, setPeerEquipes] = useState<EquipeInput[]>([]);
   useEffect(() => {
@@ -138,15 +143,15 @@ export default function DecisionPage() {
       try {
         dlog("carregarPeers():", { rodadaAtual, codigoTurma });
         if (!rodadaAtual || !codigoTurma) return;
-        // busca decisões da rodada atual (de todos os times)
+
         const q = query(collection(db, "decisoes"), where("rodada", "==", rodadaAtual));
         const snap = await getDocs(q);
         dlog("peers encontrados:", snap.size);
         const arr: EquipeInput[] = [];
         snap.forEach((d) => {
           const x: any = d.data();
-          // ignorar este time (vamos adicionar a versão local dele abaixo)
           if (x?.timeId && x.timeId === timeIdLS) return;
+
           const produtoStr = String(x?.produtoNivel ?? x?.produto ?? "Básico");
           const marketingStr = String(x?.marketingPacote ?? x?.marketing ?? "Local");
           const equipeStr = String(x?.equipeNivel ?? x?.equipe ?? "Enxuto");
@@ -175,7 +180,6 @@ export default function DecisionPage() {
     };
     carregarPeers();
   }, [rodadaAtual, codigoTurma, timeIdLS]);
-
 
   // --------- auth + capitao ---------
   useEffect(() => {
@@ -216,7 +220,6 @@ export default function DecisionPage() {
   }, [codigoTurma]);
 
   // --------- estados de decisão -----------
-  // PREÇO: mantém estrutura, mas com select fixo
   const opcoesPreco = [70, 90, 100, 110, 120];
   const [preco, setPreco] = useState<number>(100);
 
@@ -257,7 +260,6 @@ export default function DecisionPage() {
   useEffect(() => {
     const carregar = async () => {
       dlog("carregar(): empresa/config", { codigoTurma });
-      // Preferir empresa pelo timeIdLS (ou fallback para codigoTurma)
       const empresaRef = doc(db, "empresas", timeIdLS || codigoTurma);
       const geralRef = doc(db, "configuracoes", "geral");
 
@@ -270,6 +272,21 @@ export default function DecisionPage() {
 
       setRodadaAtiva(geralData?.rodadaAtiva === true);
       setRodadaAtual(geralData?.rodadaAtual ?? 1);
+
+      // ----- ler o prazo (deadline) gravado no Firestore -----
+      try {
+        const prazoField = geralData?.prazo;
+        if (prazoField?.seconds) {
+          setPrazoMs(prazoField.seconds * 1000);
+        } else if (prazoField instanceof Date) {
+          setPrazoMs(prazoField.getTime());
+        } else {
+          setPrazoMs(null);
+        }
+      } catch {
+        setPrazoMs(null);
+      }
+      // =============================================================
 
       // ================== Defaults vindos da rodada anterior (se existir) ==================
       try {
@@ -286,13 +303,11 @@ export default function DecisionPage() {
           if (decisaoPrevSnap.exists()) {
             const prev: any = decisaoPrevSnap.data();
 
-            // helpers de index seguro
             const safeIndex = (arr: string[], value: string, fallbackIdx = 0) => {
               const idx = arr.indexOf(String(value));
               return idx >= 0 ? idx : fallbackIdx;
             };
 
-            // Mapeia strings salvas para os índices locais dos selects
             if (typeof prev.preco === "number") setPreco(Number(prev.preco));
 
             const pIdx = safeIndex(
@@ -350,7 +365,7 @@ export default function DecisionPage() {
       }
       // =====================================================================================
 
-      // ================== Orçamento dinâmico: 500k + 20% do lucro das rodadas anteriores ==================
+      // ================== Orçamento dinâmico ==================
       try {
         const turmaId = codigoTurma;
         const timeId = timeIdLS || localStorage.getItem("idDoTime") || "";
@@ -364,7 +379,6 @@ export default function DecisionPage() {
             if (snap.exists()) {
               const d: any = snap.data();
               const lucro = Number(d?.lucro ?? 0);
-              // se já tiver persistentemente o reinvestimento salvo, use-o; senão, 20% do lucro
               const reinvest = Number.isFinite(d?.reinvestimento) ? Number(d.reinvestimento) : Math.max(0, Math.round(lucro * 0.20));
               if (Number.isFinite(reinvest) && reinvest > 0) somaCarry += reinvest;
             }
@@ -372,12 +386,11 @@ export default function DecisionPage() {
         }
         setOrcamentoRodada(500000 + somaCarry);
       } catch (e) {
-        // fallback conservador se algo falhar
         setOrcamentoRodada(500000);
       }
-      // ============================================================================================
+      // ========================================================
 
-      // Preferir market size específico da rodada (configuracoes/geral/rodadas/rodada_{N})
+      // Preferir market size específico da rodada
       try {
         const rodadaN = Number(geralData?.rodadaAtual ?? 1);
         const rodadaRef = doc(db, "configuracoes", "geral", "rodadas", `rodada_${rodadaN}`);
@@ -394,32 +407,58 @@ export default function DecisionPage() {
           setMarketSize(typeof geralData?.marketSize === "number" ? Number(geralData.marketSize) : 10000);
         }
       } catch (e) {
-        // fallback em caso de falha
         setMarketSize(typeof geralData?.marketSize === "number" ? Number(geralData.marketSize) : 10000);
       }
       dlog("config geral", { rodadaAtiva: geralData?.rodadaAtiva, rodadaAtual: geralData?.rodadaAtual, marketSize: geralData?.marketSize });
-
     };
 
     carregar();
-  }, [codigoTurma]);
+  }, [codigoTurma, timeIdLS]);
 
-  // --------- cronômetro 23:59 ----------
+  // 🔴 NOVO: ouvir mudanças em tempo real no "configuracoes/geral"
   useEffect(() => {
-    if (!rodadaAtiva) return;
+    const geralRef = doc(db, "configuracoes", "geral");
+    const unsub = onSnapshot(geralRef, (snap) => {
+      const g = snap.data() || {};
+      setRodadaAtiva(!!g.rodadaAtiva);
+      setRodadaAtual(Number(g.rodadaAtual ?? 1));
+
+      const p = g.prazo;
+      if (p?.seconds) setPrazoMs(p.seconds * 1000);
+      else if (p instanceof Date) setPrazoMs(p.getTime());
+      else setPrazoMs(null);
+    });
+    return () => unsub();
+  }, []);
+
+  // --------- cronômetro baseado no PRAZO do banco (com fallback 23:59) ----------
+  useEffect(() => {
+    if (!rodadaAtiva) {
+      setTempoRestante("");
+      return;
+    }
+
     const atualizarTempo = () => {
-      const agora = new Date();
-      const fim = new Date();
-      fim.setHours(23, 59, 0, 0);
-      const diff = Math.max(0, fim.getTime() - agora.getTime());
+      const agora = Date.now();
+
+      // se há prazo no banco, usa ele; senão, mantém comportamento antigo (23:59 local)
+      const fim = (() => {
+        if (prazoMs && Number.isFinite(prazoMs)) return prazoMs;
+        const fallback = new Date();
+        fallback.setHours(23, 59, 0, 0);
+        return fallback.getTime();
+      })();
+
+      const diff = Math.max(0, fim - agora);
       const horas = Math.floor(diff / 3600000);
       const minutos = Math.floor((diff % 3600000) / 60000);
       setTempoRestante(`${horas}h ${minutos}m`);
     };
+
     atualizarTempo();
     const interval = setInterval(atualizarTempo, 60000);
     return () => clearInterval(interval);
-  }, [rodadaAtiva]);
+  }, [rodadaAtiva, prazoMs]);
 
   // --------- PREVIEW competitivo ----------
   const resultado = useMemo(() => {
@@ -539,7 +578,6 @@ export default function DecisionPage() {
         status: "✅",
       };
 
-      // grava em "decisoes"
       await setDoc(decisaoRef, dados);
 
       dlog("decisao salva", { decisaoId, rodadaAtualServer });
@@ -574,7 +612,7 @@ export default function DecisionPage() {
               marginTop: 6,
               border: "1px solid #223"
             }}>
-{JSON.stringify({ rodadaAtiva, rodadaAtual, codigoTurma, timeIdLS, peers: peerEquipes.length, resultado }, null, 2)}
+{JSON.stringify({ rodadaAtiva, rodadaAtual, codigoTurma, timeIdLS, peers: peerEquipes.length, resultado, prazoMs }, null, 2)}
             </pre>
           </details>
         )}
