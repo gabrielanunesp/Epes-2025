@@ -565,7 +565,11 @@ export default function PainelResponsavel() {
             <button onClick={() => navigate("/dashboard")} style={btnVariant("#4aa3ff")}>
               🧭 Ir para o Dashboard
             </button>
-          </div>
+          {/* novo botão para o relatório admin */}
+    <button onClick={() => navigate("/informacoes-admin")} style={btnVariant("#9fd3ff")}>
+      📑 Ver Relatório Global (Admin)
+    </button>
+  </div>
         </header>
 
         {/* IDENTIDADE / RESUMO */}

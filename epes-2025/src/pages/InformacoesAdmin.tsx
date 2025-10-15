@@ -1,9 +1,10 @@
-// src/pages/Informacoes.tsx
+// src/pages/InformacoesAdmin.tsx
 import React, { useEffect, useState } from "react";
 import { db } from "../services/firebase";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import "./Informacoes.css";
 
+// Helper: formata números no padrão brasileiro (R$ 1.234,56)
 const formatBRL = (value: any) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return "—";
@@ -42,7 +43,7 @@ type TimeResumo = {
   timestamp?: number;
 };
 
-export default function Informacoes() {
+export default function InformacoesAdmin() {
   const [resumoTurmas, setResumoTurmas] = useState<Record<string, Rodada[]>>({});
   const [mapaDeNomes, setMapaDeNomes] = useState<Record<string, string>>({});
   const [publicoMap, setPublicoMap] = useState<Record<string, string>>({});
@@ -52,18 +53,13 @@ export default function Informacoes() {
   const [rodadaSelecionada, setRodadaSelecionada] = useState(1);
   const [rodadaMaxima, setRodadaMaxima] = useState(10);
 
-  // 👇 NOVO: saber se a rodada está ativa (vem do Firestore)
-  const [rodadaAtiva, setRodadaAtiva] = useState<boolean>(true);
-
   useEffect(() => {
     const buscarRodadaConfig = async () => {
       try {
         const geralRef = doc(db, "configuracoes", "geral");
         const geralSnap = await getDoc(geralRef);
-        const g = geralSnap.data() || {};
-        const rodadaFinal = g.rodadaFinal ?? 10;
+        const rodadaFinal = geralSnap.data()?.rodadaFinal ?? 10;
         setRodadaMaxima(rodadaFinal);
-        setRodadaAtiva(!!g.rodadaAtiva); // 👈 NOVO
       } catch (error) {
         console.error("Erro ao buscar rodada atual:", error);
       }
@@ -76,13 +72,6 @@ export default function Informacoes() {
       try {
         setCarregando(true);
         setErro(null);
-
-        // 🔒 Se a rodada selecionada for 9 ou 10, não carregamos nem exibimos dados
-        if (rodadaSelecionada === 9 || rodadaSelecionada === 10) {
-          setResumoTurmas({});
-          setRanking([]);
-          return;
-        }
 
         const nomes: Record<string, string> = {};
         const timesSnap = await getDocs(collection(db, "times"));
@@ -168,17 +157,13 @@ export default function Informacoes() {
     fetchResumoGlobal();
   }, [rodadaSelecionada]);
 
-  // 🔔 Regra de bloqueio da UI para 9/10
-  const rodadaBloqueada = rodadaSelecionada === 9 || rodadaSelecionada === 10;
-
   return (
     <div className="info-page">
       <div className="info-container">
-        {/* Header */}
         <header className="info-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <span className="badge">EPES • Challenge 2025</span>
-            <h1>Relatório Global da Competição</h1>
+            <h1>Relatório Global da Competição — Admin</h1>
           </div>
           <div className="info-header__controls">
             <label className="info-select__label" htmlFor="rodadaSelect">Selecionar rodada</label>
@@ -197,17 +182,6 @@ export default function Informacoes() {
 
         {erro && <div className="info-alert info-alert--error">{erro}</div>}
 
-        {/* Mensagem de bloqueio para rodadas 9/10 */}
-        {rodadaBloqueada && (
-          <div className="info-alert info-alert--warn" style={{ marginBottom: 16 }}>
-            <strong>🔒 Acesso restrito às decisões da rodada {rodadaSelecionada}.</strong><br/>
-            {rodadaAtiva
-              ? "Resultados desta rodada ainda não estão disponíveis ao público."
-              : "Resultado das decisões não disponíveis, somente liberadas na cerimônia de formatura dia 21 de outubro."}
-          </div>
-        )}
-
-        {/* Skeleton enquanto carrega */}
         {carregando && (
           <div className="info-skeleton">
             <div className="info-skeleton__bar" />
@@ -216,8 +190,7 @@ export default function Informacoes() {
           </div>
         )}
 
-        {/* Se rodada 9/10: não renderiza ranking nem tabelas */}
-        {!rodadaBloqueada && !carregando && ranking.length > 0 && (
+        {!carregando && ranking.length > 0 && (
           <section className="card--glass">
             <div className="card__header">
               <h3>🏆 Ranking da Rodada {rodadaSelecionada}</h3>
@@ -257,7 +230,7 @@ export default function Informacoes() {
           </section>
         )}
 
-        {!rodadaBloqueada && !carregando &&
+        {!carregando &&
           Object.entries(resumoTurmas).map(([turma, rodadas]) => (
             <section key={turma} className="card--glass">
               <div className="card__header">

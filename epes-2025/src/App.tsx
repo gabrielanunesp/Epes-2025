@@ -12,6 +12,7 @@ import DecisionPage from './pages/DecisionsPage';
 import RankingPage from './pages/RankingPage';
 import Relatorio from './pages/Relatorio';
 import Informacoes from './pages/Informacoes';
+import InformacoesAdmin from './pages/InformacoesAdmin'; // 👈 NOVO
 import EscolherTime from './pages/EscolherTime';
 import PainelResponsavel from './pages/PainelResponsavel';
 import D0Identidade from './pages/D0Identidade'; // ✅ Etapa de identidade
@@ -71,6 +72,13 @@ function App() {
           path="/informacoes"
           element={user ? <Informacoes /> : <Navigate to="/login" />}
         />
+
+        {/* 👇 NOVA ROTA ADMIN (acessível para usuários logados) */}
+        <Route
+          path="/informacoes-admin"
+          element={user ? <InformacoesAdmin /> : <Navigate to="/login" />}
+        />
+
         <Route path="/escolher-time" element={<EscolherTime />} />
         <Route
           path="/painel-responsavel"
